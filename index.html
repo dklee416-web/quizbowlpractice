@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canonball — Quizbowl Frequency Drills</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14120f;
+    --panel:#1d1a15;
+    --panel-2:#252019;
+    --hair:#3a332a;
+    --parchment:#ede3d3;
+    --muted:#a89c8a;
+    --brass:#c9a24b;
+    --brass-dim:#8a7238;
+    --buzzer:#c1272d;
+    --buzzer-bright:#e0393f;
+    --ring-1: rgba(201,162,75,0.9);
+    --ring-2: rgba(201,162,75,0.5);
+    --ring-3: rgba(201,162,75,0.25);
+    --radius: 4px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 800px at 15% -10%, rgba(201,162,75,0.06), transparent 60%),
+      radial-gradient(900px 700px at 110% 10%, rgba(193,39,45,0.05), transparent 55%),
+      var(--ink);
+    color:var(--parchment);
+    font-family:'Inter',sans-serif;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+  }
+  .noise{
+    position:fixed; inset:0; pointer-events:none; opacity:0.035; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  header.top{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:22px 32px 14px; border-bottom:1px solid var(--hair);
+  }
+  .brand{display:flex; align-items:baseline; gap:12px;}
+  .brand .mark{
+    font-family:'Fraunces',serif; font-weight:700; font-size:26px; letter-spacing:0.3px;
+    color:var(--parchment);
+  }
+  .brand .mark span{color:var(--brass);}
+  .brand .tag{ font-size:12.5px; color:var(--muted); letter-spacing:0.3px; }
+  #exitBtn{
+    display:none; background:none; border:1px solid var(--hair); color:var(--muted);
+    padding:7px 14px; border-radius:var(--radius); font-family:'Inter'; font-size:13px; cursor:pointer;
+  }
+  #exitBtn:hover{border-color:var(--buzzer); color:var(--buzzer-bright);}
+
+  main{ flex:1; display:flex; align-items:flex-start; justify-content:center; padding:40px 24px 80px; }
+
+  /* ---------- SETUP SCREEN ---------- */
+  .setup{
+    width:100%; max-width:760px;
+    background:var(--panel);
+    border:1px solid var(--hair);
+    border-radius:6px;
+    padding:36px 40px 32px;
+  }
+  .setup h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:22px; margin:0 0 6px;
+  }
+  .setup .sub{ color:var(--muted); font-size:14px; line-height:1.5; margin:0 0 28px; max-width:56ch; }
+  .field{ margin-bottom:24px; }
+  .field label{
+    display:block; font-size:11.5px; letter-spacing:1.2px; text-transform:uppercase;
+    color:var(--brass); margin-bottom:10px; font-weight:600;
+  }
+  .chip-grid{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    padding:9px 15px; border-radius:20px; border:1px solid var(--hair); background:var(--panel-2);
+    color:var(--parchment); font-size:13.5px; cursor:pointer; transition:all .12s ease;
+    font-family:'Inter';
+  }
+  .chip:hover{ border-color:var(--brass-dim); }
+  .chip.active{ background:var(--brass); border-color:var(--brass); color:#20180a; font-weight:600; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .slider-row{ display:flex; align-items:center; gap:16px; }
+  input[type=range]{
+    -webkit-appearance:none; flex:1; height:3px; background:var(--hair); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--brass);
+    cursor:pointer; border:2px solid var(--ink);
+  }
+  .slider-val{ font-family:'Space Mono',monospace; color:var(--brass); font-size:14px; min-width:80px; text-align:right; }
+  select{
+    background:var(--panel-2); color:var(--parchment); border:1px solid var(--hair); border-radius:var(--radius);
+    padding:9px 10px; font-family:'Inter'; font-size:13.5px; width:100%;
+  }
+  .hint{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  .startBtn{
+    width:100%; padding:15px; margin-top:8px; border:none; border-radius:var(--radius);
+    background:var(--buzzer); color:#fff; font-family:'Fraunces',serif; font-weight:600; font-size:16px;
+    letter-spacing:0.4px; cursor:pointer; transition:background .12s ease;
+  }
+  .startBtn:hover{ background:var(--buzzer-bright); }
+  .startBtn:disabled{ background:var(--hair); color:var(--muted); cursor:not-allowed; }
+  .status-line{ margin-top:14px; font-size:13px; color:var(--muted); min-height:18px; font-family:'Space Mono',monospace; }
+  .status-line.err{ color:var(--buzzer-bright); }
+
+  /* ---------- PLAY SCREEN ---------- */
+  .play{ width:100%; max-width:820px; display:none; flex-direction:column; gap:22px; }
+  .play-meta{
+    display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--muted);
+    font-family:'Space Mono',monospace; letter-spacing:0.3px;
+  }
+  .play-meta .tagset{ display:flex; gap:10px; }
+  .play-meta .badge{ background:var(--panel-2); border:1px solid var(--hair); padding:4px 10px; border-radius:20px; }
+
+  .card{
+    background:var(--panel); border:1px solid var(--hair); border-radius:6px; padding:40px;
+    min-height:220px; display:flex; flex-direction:column; justify-content:center;
+  }
+  .qtext{
+    font-family:'Space Mono',monospace; font-size:18px; line-height:1.75; color:var(--parchment);
+  }
+  .qtext .power{ color:var(--brass); }
+  .cursor{ display:inline-block; width:9px; height:20px; background:var(--brass); margin-left:2px; vertical-align:-3px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{opacity:0;} }
+
+  .controls{ display:flex; align-items:center; justify-content:center; gap:18px; }
+  .buzz{
+    width:120px; height:120px; border-radius:50%; border:none; cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, var(--buzzer-bright), var(--buzzer) 70%);
+    color:#fff; font-family:'Fraunces',serif; font-weight:700; font-size:18px; letter-spacing:1px;
+    box-shadow:0 6px 0 #7c1418, 0 10px 18px rgba(0,0,0,0.5);
+    transition:transform .06s ease, box-shadow .06s ease;
+  }
+  .buzz:active{ transform:translateY(4px); box-shadow:0 2px 0 #7c1418, 0 4px 10px rgba(0,0,0,0.5); }
+  .buzz:disabled{ opacity:0.35; cursor:default; box-shadow:0 6px 0 #333, 0 10px 18px rgba(0,0,0,0.3); background:#444; }
+  .hintline{ text-align:center; color:var(--muted); font-size:12px; font-family:'Space Mono',monospace; }
+  .hintline.grace{ color:var(--brass); }
+  kbd{ background:var(--panel-2); border:1px solid var(--hair); border-radius:3px; padding:1px 6px; font-family:'Space Mono'; }
+
+  /* buzzed answer-input state */
+  .answer-input-wrap{
+    display:none; align-items:center; gap:14px; justify-content:center;
+    background:var(--panel-2); border:1px solid var(--brass-dim); border-radius:8px; padding:14px 18px;
+  }
+  .countdown-ring{ position:relative; width:44px; height:44px; flex:none; }
+  .countdown-ring svg{ width:100%; height:100%; }
+  .countdown-ring circle{ transition:stroke-dashoffset 0.2s linear; }
+  .countdown-ring span{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:13px; color:var(--brass);
+  }
+  #answerInput{
+    flex:1; background:var(--ink); border:1px solid var(--hair); border-radius:var(--radius);
+    color:var(--parchment); font-family:'Space Mono',monospace; font-size:15px; padding:11px 14px; outline:none;
+  }
+  #answerInput:focus{ border-color:var(--brass); }
+  .submitBtn{
+    background:var(--brass); border:none; color:#20180a; font-family:'Inter'; font-weight:600;
+    font-size:13.5px; padding:11px 18px; border-radius:var(--radius); cursor:pointer;
+  }
+  .submitBtn:hover{ background:#dcb662; }
+
+  /* answer reveal */
+  .answer-wrap{ display:none; flex-direction:column; align-items:center; gap:16px; padding-top:6px; }
+  .judgeBadge{
+    font-family:'Fraunces',serif; font-weight:700; font-size:15px; letter-spacing:1.5px; text-transform:uppercase;
+    padding:6px 18px; border-radius:20px; display:none;
+  }
+  .judgeBadge.accept{ background:rgba(107,143,113,0.18); color:#a8d0ae; border:1px solid #4c6b50; display:block; }
+  .judgeBadge.reject{ background:rgba(193,39,45,0.15); color:var(--buzzer-bright); border:1px solid var(--buzzer); display:block; }
+  .judgeBadge.prompt{ background:rgba(201,162,75,0.15); color:var(--brass); border:1px solid var(--brass-dim); display:block; }
+  .judgeBadge.dead{ background:rgba(168,156,138,0.12); color:var(--muted); border:1px solid var(--hair); display:block; }
+  .given-answer-line{ font-family:'Space Mono',monospace; font-size:13px; color:var(--muted); text-align:center; }
+  .given-answer-line b{ color:var(--parchment); }
+  .target{ position:relative; width:130px; height:130px; }
+  .target svg{ width:100%; height:100%; }
+  .target .count{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; font-family:'Fraunces',serif;
+  }
+  .target .count .n{ font-size:28px; font-weight:700; color:var(--brass); }
+  .target .count .lbl{ font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-top:1px; }
+  .answerline{
+    font-family:'Fraunces',serif; font-size:22px; font-weight:600; text-align:center; max-width:60ch;
+    color:var(--parchment);
+  }
+  .answerline b{ color:var(--brass); }
+  .meta-line{ font-size:12px; color:var(--muted); font-family:'Space Mono',monospace; text-align:center; }
+  .judge-row{ display:flex; gap:10px; }
+  .jbtn{
+    padding:9px 18px; border-radius:20px; border:1px solid var(--hair); background:var(--panel-2);
+    color:var(--parchment); font-size:13px; cursor:pointer; font-family:'Inter';
+  }
+  .jbtn.good:hover{ border-color:#6b8f71; color:#a8d0ae; }
+  .jbtn.bad:hover{ border-color:var(--buzzer); color:var(--buzzer-bright); }
+  .nextBtn{
+    padding:12px 30px; border-radius:var(--radius); border:none; background:var(--brass); color:#20180a;
+    font-family:'Fraunces',serif; font-weight:700; font-size:15px; cursor:pointer; margin-top:4px;
+  }
+  .nextBtn:hover{ background:#dcb662; }
+
+  .stats-strip{
+    display:flex; justify-content:center; gap:28px; font-family:'Space Mono',monospace; font-size:12px; color:var(--muted);
+  }
+  .stats-strip b{ color:var(--parchment); }
+
+  footer{ text-align:center; padding:18px; color:var(--muted); font-size:11.5px; font-family:'Space Mono',monospace; }
+  footer a{ color:var(--brass-dim); text-decoration:none; }
+  footer a:hover{ color:var(--brass); }
+
+  @media (max-width: 640px){
+    .row2{ grid-template-columns:1fr; }
+    .setup{ padding:26px 22px; }
+    .card{ padding:26px 20px; }
+    .qtext{ font-size:16px; }
+  }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark">Canon<span>ball</span></div>
+    <div class="tag">target practice on quizbowl's most common answers</div>
+  </div>
+  <button id="exitBtn">Exit drill</button>
+</header>
+
+<main>
+  <!-- SETUP -->
+  <section class="setup" id="setupScreen">
+    <h1>Set up your drill</h1>
+    <p class="sub">Pulls live from qbreader's question database. Pick a subject, choose how deep into the frequency list you want to go, and you'll only see tossups whose answer is one of that many most-common answers.</p>
+
+    <div class="field">
+      <label>Category</label>
+      <div class="chip-grid" id="categoryChips"></div>
+    </div>
+
+    <div class="field">
+      <label>Subcategory <span style="color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">(optional)</span></label>
+      <div class="chip-grid" id="subcategoryChips"><span class="hint">Pick a category first.</span></div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Difficulty range</label>
+        <div class="row2">
+          <select id="diffMin"></select>
+          <select id="diffMax"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Reading speed</label>
+        <div class="slider-row">
+          <input type="range" id="speedSlider" min="1" max="8" value="4" step="1">
+          <span class="slider-val" id="speedVal">4 wps</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Frequency depth — top <span id="depthLabel" style="color:var(--parchment);">30</span> answers</label>
+      <div class="slider-row">
+        <input type="range" id="depthSlider" min="10" max="200" value="30" step="5">
+        <span class="slider-val" id="depthVal">30</span>
+      </div>
+      <div class="hint">Lower = drill only the most repeated answers (e.g. Napoleon, mitochondria). Higher = wider net, still capped to the canon.</div>
+    </div>
+
+    <button class="startBtn" id="startBtn" disabled>Pick a category to begin</button>
+    <div class="status-line" id="statusLine"></div>
+  </section>
+
+  <!-- PLAY -->
+  <section class="play" id="playScreen">
+    <div class="play-meta">
+      <div class="tagset">
+        <span class="badge" id="catBadge">—</span>
+        <span class="badge" id="poolBadge">—</span>
+      </div>
+      <div id="progressBadge">Q 0</div>
+    </div>
+
+    <div class="card">
+      <div class="qtext" id="qtext"><span class="cursor"></span></div>
+    </div>
+
+    <div class="controls" id="readControls">
+      <button class="buzz" id="buzzBtn">BUZZ</button>
+    </div>
+    <div class="hintline" id="readHint">Press <kbd>space</kbd> or click BUZZ when you know it</div>
+
+    <div class="answer-input-wrap" id="answerInputWrap">
+      <div class="countdown-ring">
+        <svg viewBox="0 0 44 44">
+          <circle cx="22" cy="22" r="19" fill="none" stroke="var(--hair)" stroke-width="4"/>
+          <circle id="countdownArc" cx="22" cy="22" r="19" fill="none" stroke="var(--buzzer-bright)" stroke-width="4"
+            stroke-dasharray="119.4" stroke-dashoffset="0" transform="rotate(-90 22 22)"/>
+        </svg>
+        <span id="countdownNum">10</span>
+      </div>
+      <input type="text" id="answerInput" autocomplete="off" placeholder="Type your answer, then press Enter…">
+      <button class="submitBtn" id="submitAnswerBtn">Submit</button>
+    </div>
+
+    <div class="answer-wrap" id="answerWrap">
+      <div class="judgeBadge" id="judgeBadge"></div>
+      <div class="target">
+        <svg viewBox="0 0 130 130">
+          <circle cx="65" cy="65" r="60" fill="none" stroke="var(--ring-3)" stroke-width="10"/>
+          <circle cx="65" cy="65" r="42" fill="none" stroke="var(--ring-2)" stroke-width="10"/>
+          <circle cx="65" cy="65" r="24" fill="none" stroke="var(--ring-1)" stroke-width="10"/>
+        </svg>
+        <div class="count"><div class="n" id="freqCount">—</div><div class="lbl">times asked</div></div>
+      </div>
+      <div class="answerline" id="answerText"></div>
+      <div class="given-answer-line" id="givenAnswerLine"></div>
+      <div class="meta-line" id="answerMeta"></div>
+      <button class="nextBtn" id="nextBtn">Next question →</button>
+    </div>
+
+    <div class="stats-strip">
+      <div>Seen <b id="statSeen">0</b></div>
+      <div>Got <b id="statGot">0</b></div>
+      <div>Missed <b id="statMissed">0</b></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Question data &amp; frequency lists via the <a href="https://www.qbreader.org/" target="_blank">qbreader.org</a> public API · questions © their original writers/tournaments, sourced via quizbowlpackets.com
+</footer>
+
+<script>
+const API = "https://www.qbreader.org/api";
+
+const TAXONOMY = {
+  "Literature": {
+    subs: ["American Literature","British Literature","Classical Literature","European Literature","World Literature","Other Literature"],
+    alts: ["Drama","Long Fiction","Poetry","Short Fiction","Misc Literature"]
+  },
+  "History": {
+    subs: ["American History","Ancient History","European History","World History","Other History"],
+    alts: []
+  },
+  "Science": {
+    subs: ["Biology","Chemistry","Physics","Other Science"],
+    alts: ["Math","Astronomy","Computer Science","Earth Science","Engineering","Misc Science"]
+  },
+  "Fine Arts": {
+    subs: ["Visual Fine Arts","Auditory Fine Arts","Other Fine Arts"],
+    alts: ["Architecture","Dance","Film","Jazz","Musicals","Opera","Photography","Misc Arts"]
+  },
+  "Religion": { subs: [], alts: [] },
+  "Mythology": { subs: [], alts: [] },
+  "Philosophy": { subs: [], alts: [] },
+  "Social Science": {
+    subs: [],
+    alts: ["Anthropology","Economics","Linguistics","Psychology","Sociology","Other Social Science"]
+  },
+  "Current Events": { subs: [], alts: [] },
+  "Geography": { subs: [], alts: [] },
+  "Other Academic": { subs: [], alts: [] },
+  "Trash": { subs: ["Movies","Music","Sports","Television","Video Games","Other Pop Culture"], alts: [] }
+};
+
+let state = {
+  category: null,
+  subcategory: null,
+  altSubcategory: null,
+  diffMin: 1,
+  diffMax: 10,
+  depth: 30,
+  speed: 4,
+  pool: [],
+  freqMap: {},
+  idx: -1,
+  seen: 0, got: 0, missed: 0,
+  revealTimer: null,
+  countdownHandle: null,
+  phase: 'reading',
+  words: [],
+  wordIdx: 0
+};
+
+// ---------- SETUP UI ----------
+const categoryChips = document.getElementById('categoryChips');
+const subcategoryChips = document.getElementById('subcategoryChips');
+const startBtn = document.getElementById('startBtn');
+const statusLine = document.getElementById('statusLine');
+
+Object.keys(TAXONOMY).forEach(cat => {
+  const chip = document.createElement('button');
+  chip.className = 'chip';
+  chip.textContent = cat;
+  chip.onclick = () => selectCategory(cat, chip);
+  categoryChips.appendChild(chip);
+});
+
+function selectCategory(cat, chipEl){
+  state.category = cat;
+  state.subcategory = null;
+  state.altSubcategory = null;
+  [...categoryChips.children].forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+
+  subcategoryChips.innerHTML = '';
+  const { subs, alts } = TAXONOMY[cat];
+
+  const allChip = document.createElement('button');
+  allChip.className = 'chip active';
+  allChip.textContent = 'All of ' + cat;
+  allChip.onclick = () => selectSubcategory(null, null, allChip);
+  subcategoryChips.appendChild(allChip);
+
+  subs.forEach(sub => {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.textContent = sub;
+    chip.onclick = () => selectSubcategory(sub, null, chip);
+    subcategoryChips.appendChild(chip);
+  });
+
+  if(alts.length){
+    const label = document.createElement('div');
+    label.style.cssText = 'width:100%; font-size:11px; color:var(--muted); margin:10px 0 -2px; letter-spacing:0.5px;';
+    label.textContent = 'ALTERNATE SUBCATEGORIES (finer-grained, cut across the above)';
+    subcategoryChips.appendChild(label);
+
+    alts.forEach(alt => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.style.borderStyle = 'dashed';
+      chip.textContent = alt;
+      chip.onclick = () => selectSubcategory(null, alt, chip);
+      subcategoryChips.appendChild(chip);
+    });
+  }
+
+  startBtn.disabled = false;
+  startBtn.textContent = 'Start drill';
+}
+
+function selectSubcategory(sub, alt, chipEl){
+  state.subcategory = sub;
+  state.altSubcategory = alt;
+  [...subcategoryChips.children].forEach(c => c.classList && c.classList.remove('active'));
+  chipEl.classList.add('active');
+}
+
+// difficulty dropdowns
+const diffMinSel = document.getElementById('diffMin');
+const diffMaxSel = document.getElementById('diffMax');
+for(let i=1;i<=10;i++){
+  const o1 = document.createElement('option'); o1.value=i; o1.textContent = 'Min diff: '+i;
+  const o2 = document.createElement('option'); o2.value=i; o2.textContent = 'Max diff: '+i;
+  if(i===1) o1.selected = true;
+  if(i===10) o2.selected = true;
+  diffMinSel.appendChild(o1);
+  diffMaxSel.appendChild(o2);
+}
+diffMinSel.onchange = () => state.diffMin = parseInt(diffMinSel.value);
+diffMaxSel.onchange = () => state.diffMax = parseInt(diffMaxSel.value);
+
+const depthSlider = document.getElementById('depthSlider');
+const depthVal = document.getElementById('depthVal');
+const depthLabel = document.getElementById('depthLabel');
+depthSlider.oninput = () => {
+  state.depth = parseInt(depthSlider.value);
+  depthVal.textContent = state.depth;
+  depthLabel.textContent = state.depth;
+};
+
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+speedSlider.oninput = () => {
+  state.speed = parseInt(speedSlider.value);
+  speedVal.textContent = state.speed + ' wps';
+};
+
+// ---------- helpers ----------
+function qs(params){
+  return Object.entries(params)
+    .filter(([,v]) => v !== undefined && v !== null && v !== '')
+    .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+}
+
+function diffArray(){
+  const arr = [];
+  for(let i=state.diffMin;i<=state.diffMax;i++) arr.push(i);
+  return arr.join(',');
+}
+
+async function fetchJSON(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// limited-concurrency pool runner
+async function runPool(items, worker, concurrency){
+  const results = [];
+  let i = 0;
+  async function next(){
+    while(i < items.length){
+      const cur = i++;
+      try{ results[cur] = await worker(items[cur]); }
+      catch(e){ results[cur] = null; }
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(concurrency, items.length)}, next));
+  return results;
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---------- build drill pool ----------
+startBtn.onclick = async () => {
+  if(!state.category) return;
+  startBtn.disabled = true;
+  startBtn.textContent = 'Loading…';
+  statusLine.className = 'status-line';
+  statusLine.textContent = 'Fetching frequency list…';
+
+  try{
+    const freqParams = {
+      category: state.category,
+      subcategory: state.subcategory || undefined,
+      alternateSubcategory: state.altSubcategory || undefined,
+      difficulties: diffArray(),
+      limit: state.depth,
+      questionType: 'tossup'
+    };
+    const freqData = await fetchJSON(`${API}/frequency-list?${qs(freqParams)}`);
+    const freqList = freqData.frequencyList || [];
+
+    if(freqList.length === 0){
+      throw new Error('No frequency data for that combination — try a broader category or difficulty range.');
+    }
+
+    state.freqMap = {};
+    freqList.forEach(f => state.freqMap[f.answer] = f.frequency);
+
+    statusLine.textContent = `Found ${freqList.length} answers. Pulling matching tossups…`;
+
+    const results = await runPool(freqList, async (f) => {
+      const params = {
+        q: f.answer,
+        questionType: 'tossup',
+        searchType: 'answer',
+        exactPhrase: true,
+        randomize: true,
+        maxReturnLength: 4,
+        category: state.category,
+        subcategory: state.subcategory || undefined,
+        alternateSubcategories: state.altSubcategory || undefined,
+        difficulties: diffArray()
+      };
+      const data = await fetchJSON(`${API}/query?${qs(params)}`);
+      return (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray.map(t => ({...t, __freqAnswer: f.answer})) : [];
+    }, 8);
+
+    let pool = results.flat().filter(Boolean);
+    // dedupe by _id
+    const seenIds = new Set();
+    pool = pool.filter(t => {
+      if(seenIds.has(t._id)) return false;
+      seenIds.add(t._id);
+      return true;
+    });
+    // shuffle
+    for(let i = pool.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i+1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    if(pool.length === 0){
+      throw new Error('Frequency list came back, but no matching tossups were found. Try widening difficulty or picking a broader category.');
+    }
+
+    state.pool = pool;
+    state.idx = -1;
+    state.seen = 0; state.got = 0; state.missed = 0;
+    updateStats();
+
+    const subLabel = state.subcategory || state.altSubcategory;
+    document.getElementById('catBadge').textContent = subLabel ? `${state.category} · ${subLabel}` : state.category;
+    document.getElementById('poolBadge').textContent = `${pool.length} tossups · top ${freqList.length} answers`;
+
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('playScreen').style.display = 'flex';
+    document.getElementById('exitBtn').style.display = 'inline-block';
+
+    nextQuestion();
+  }catch(err){
+    statusLine.className = 'status-line err';
+    statusLine.textContent = err.message.includes('Failed to fetch')
+      ? "Couldn't reach qbreader's API from this browser (possible network/CORS block). Check your connection and try again."
+      : err.message;
+    startBtn.disabled = false;
+    startBtn.textContent = 'Start drill';
+  }
+};
+
+// ---------- reading / buzzing ----------
+const qtextEl = document.getElementById('qtext');
+const buzzBtn = document.getElementById('buzzBtn');
+const answerWrap = document.getElementById('answerWrap');
+const readControls = document.getElementById('readControls');
+const readHint = document.getElementById('readHint');
+const progressBadge = document.getElementById('progressBadge');
+const answerInputWrap = document.getElementById('answerInputWrap');
+const answerInput = document.getElementById('answerInput');
+const submitAnswerBtn = document.getElementById('submitAnswerBtn');
+const countdownArc = document.getElementById('countdownArc');
+const countdownNum = document.getElementById('countdownNum');
+const judgeBadge = document.getElementById('judgeBadge');
+const givenAnswerLine = document.getElementById('givenAnswerLine');
+
+const BUZZ_SECONDS = 10;
+const GRACE_SECONDS = 5;
+const RING_CIRCUMFERENCE = 119.4;
+
+function clearAllTimers(){
+  clearTimeout(state.revealTimer);
+  if(state.countdownHandle){ state.countdownHandle(); state.countdownHandle = null; }
+}
+
+function startCountdown(seconds, onTick, onExpire){
+  const start = Date.now();
+  const total = seconds * 1000;
+  function tick(){
+    const remaining = Math.max(0, total - (Date.now() - start));
+    onTick(remaining, total);
+    if(remaining <= 0){
+      clearInterval(iv);
+      onExpire();
+    }
+  }
+  const iv = setInterval(tick, 100);
+  tick();
+  return () => clearInterval(iv);
+}
+
+function nextQuestion(){
+  clearAllTimers();
+  state.idx++;
+  if(state.idx >= state.pool.length) state.idx = 0; // loop back once exhausted
+  const tu = state.pool[state.idx];
+  state.words = tu.question_sanitized.split(/\s+/);
+  state.wordIdx = 0;
+  state.phase = 'reading';
+
+  qtextEl.innerHTML = '<span class="cursor"></span>';
+  answerWrap.style.display = 'none';
+  answerInputWrap.style.display = 'none';
+  readControls.style.display = 'flex';
+  readHint.style.display = 'block';
+  readHint.classList.remove('grace');
+  readHint.innerHTML = 'Press <kbd>space</kbd> or click BUZZ when you know it';
+  buzzBtn.disabled = false;
+  progressBadge.textContent = `Q ${state.idx + 1} / ${state.pool.length}`;
+
+  revealNextWord();
+}
+
+function revealNextWord(){
+  if(state.wordIdx >= state.words.length){
+    enterGrace();
+    return;
+  }
+  const shown = state.words.slice(0, state.wordIdx + 1).join(' ');
+  qtextEl.innerHTML = escapeHtml(shown) + '<span class="cursor"></span>';
+  state.wordIdx++;
+  const delay = 1000 / state.speed;
+  state.revealTimer = setTimeout(revealNextWord, delay);
+}
+
+function enterGrace(){
+  state.phase = 'grace';
+  readHint.style.display = 'block';
+  readHint.classList.add('grace');
+  buzzBtn.disabled = false;
+  state.countdownHandle = startCountdown(GRACE_SECONDS, (remaining) => {
+    readHint.innerHTML = `Question's over — buzz within <b>${Math.ceil(remaining / 1000)}s</b> or it goes dead`;
+  }, () => {
+    deadQuestion();
+  });
+}
+
+function buzz(){
+  if(state.phase !== 'reading' && state.phase !== 'grace') return;
+  clearAllTimers();
+  buzzBtn.disabled = true;
+  enterBuzzedInput();
+}
+
+function enterBuzzedInput(){
+  state.phase = 'buzzed';
+  readControls.style.display = 'none';
+  readHint.style.display = 'none';
+  answerInputWrap.style.display = 'flex';
+  answerInput.value = '';
+  answerInput.disabled = false;
+  countdownNum.textContent = String(BUZZ_SECONDS);
+  countdownArc.style.strokeDashoffset = '0';
+  setTimeout(() => answerInput.focus(), 20);
+
+  state.countdownHandle = startCountdown(BUZZ_SECONDS, (remaining, total) => {
+    countdownArc.style.strokeDashoffset = (RING_CIRCUMFERENCE * (1 - remaining / total)).toFixed(1);
+    countdownNum.textContent = String(Math.ceil(remaining / 1000));
+  }, () => {
+    submitAnswer(answerInput.value, true);
+  });
+}
+
+async function submitAnswer(value, timedOut){
+  if(state.phase !== 'buzzed') return;
+  state.phase = 'judging';
+  clearAllTimers();
+  answerInput.disabled = true;
+
+  const trimmed = (value || '').trim();
+  const tu = state.pool[state.idx];
+
+  if(trimmed === ''){
+    revealFull({ given: null, judgement: timedOut ? 'timeout' : 'blank' });
+    return;
+  }
+
+  let judgement = 'reject';
+  let directedPrompt = null;
+  try{
+    const data = await fetchJSON(`${API}/check-answer?${qs({ answerline: tu.answer, givenAnswer: trimmed })}`);
+    const dir = (data.directive || '').toLowerCase();
+    if(dir === 'accept') judgement = 'accept';
+    else if(dir === 'prompt'){ judgement = 'prompt'; directedPrompt = data.directedPrompt || null; }
+    else judgement = 'reject';
+  }catch(e){
+    const ans = (tu.answer_sanitized || '').toLowerCase();
+    const guess = trimmed.toLowerCase();
+    judgement = (ans.includes(guess) || guess.includes(ans)) ? 'accept' : 'reject';
+  }
+
+  revealFull({ given: trimmed, judgement, directedPrompt });
+}
+
+submitAnswerBtn.onclick = () => submitAnswer(answerInput.value, false);
+answerInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); submitAnswer(answerInput.value, false); }
+});
+
+buzzBtn.onclick = buzz;
+document.addEventListener('keydown', (e) => {
+  if(document.getElementById('playScreen').style.display !== 'flex') return;
+  if(e.code === 'Space' && (state.phase === 'reading' || state.phase === 'grace')){
+    e.preventDefault();
+    buzz();
+  }
+});
+
+function deadQuestion(){
+  clearAllTimers();
+  buzzBtn.disabled = true;
+  revealFull({ given: null, judgement: 'dead' });
+}
+
+function revealFull({ given, judgement, directedPrompt }){
+  clearAllTimers();
+  state.phase = 'answer';
+  const tu = state.pool[state.idx];
+  qtextEl.innerHTML = escapeHtml(state.words.join(' '));
+  readControls.style.display = 'none';
+  readHint.style.display = 'none';
+  readHint.classList.remove('grace');
+  answerInputWrap.style.display = 'none';
+  answerWrap.style.display = 'flex';
+
+  judgeBadge.className = 'judgeBadge';
+  if(judgement === 'accept'){ judgeBadge.classList.add('accept'); judgeBadge.textContent = '✓ Correct'; }
+  else if(judgement === 'reject'){ judgeBadge.classList.add('reject'); judgeBadge.textContent = '✗ Incorrect'; }
+  else if(judgement === 'prompt'){ judgeBadge.classList.add('prompt'); judgeBadge.textContent = 'Prompt' + (directedPrompt ? ' — ' + directedPrompt : ''); }
+  else if(judgement === 'timeout'){ judgeBadge.classList.add('dead'); judgeBadge.textContent = "Time's up"; }
+  else if(judgement === 'blank'){ judgeBadge.classList.add('dead'); judgeBadge.textContent = 'No answer given'; }
+  else { judgeBadge.classList.add('dead'); judgeBadge.textContent = 'Question dead'; }
+
+  if(given){
+    givenAnswerLine.style.display = 'block';
+    givenAnswerLine.innerHTML = `You answered: <b>${escapeHtml(given)}</b>`;
+  }else{
+    givenAnswerLine.style.display = 'none';
+    givenAnswerLine.innerHTML = '';
+  }
+
+  document.getElementById('answerText').innerHTML = tu.answer;
+  const freq = state.freqMap[tu.__freqAnswer];
+  document.getElementById('freqCount').textContent = freq !== undefined ? freq : '—';
+  document.getElementById('answerMeta').textContent =
+    `${tu.set ? tu.set.name : ''}${tu.set && tu.set.year ? ' \'' + String(tu.set.year).slice(2) : ''} · difficulty ${tu.difficulty} · ${tu.category}${tu.subcategory ? ' / ' + tu.subcategory : ''}`;
+
+  state.seen++;
+  if(judgement === 'accept') state.got++;
+  else state.missed++;
+  updateStats();
+}
+
+document.getElementById('nextBtn').onclick = nextQuestion;
+
+function updateStats(){
+  document.getElementById('statSeen').textContent = state.seen;
+  document.getElementById('statGot').textContent = state.got;
+  document.getElementById('statMissed').textContent = state.missed;
+}
+
+document.getElementById('exitBtn').onclick = () => {
+  clearAllTimers();
+  document.getElementById('playScreen').style.display = 'none';
+  document.getElementById('setupScreen').style.display = 'block';
+  document.getElementById('exitBtn').style.display = 'none';
+};
+</script>
+</body>
+</html>
