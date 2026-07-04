@@ -148,8 +148,13 @@
 
   /* buzzed answer-input state */
   .answer-input-wrap{
-    display:none; align-items:center; gap:14px; justify-content:center;
+    display:none; flex-direction:column; gap:10px;
     background:var(--panel-2); border:1px solid var(--brass-dim); border-radius:8px; padding:14px 18px;
+  }
+  .answerRow{ display:flex; align-items:center; gap:14px; justify-content:center; }
+  .promptMsg{
+    display:none; text-align:center; font-family:'Fraunces',serif; font-weight:600; font-size:14px;
+    color:var(--brass);
   }
   .countdown-ring{ position:relative; width:44px; height:44px; flex:none; }
   .countdown-ring svg{ width:100%; height:100%; }
@@ -302,16 +307,19 @@
     <div class="hintline" id="readHint">Press <kbd>space</kbd> or click BUZZ when you know it</div>
 
     <div class="answer-input-wrap" id="answerInputWrap">
-      <div class="countdown-ring">
-        <svg viewBox="0 0 44 44">
-          <circle cx="22" cy="22" r="19" fill="none" stroke="var(--hair)" stroke-width="4"/>
-          <circle id="countdownArc" cx="22" cy="22" r="19" fill="none" stroke="var(--buzzer-bright)" stroke-width="4"
-            stroke-dasharray="119.4" stroke-dashoffset="0" transform="rotate(-90 22 22)"/>
-        </svg>
-        <span id="countdownNum">10</span>
+      <div class="promptMsg" id="promptMsg"></div>
+      <div class="answerRow">
+        <div class="countdown-ring">
+          <svg viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="19" fill="none" stroke="var(--hair)" stroke-width="4"/>
+            <circle id="countdownArc" cx="22" cy="22" r="19" fill="none" stroke="var(--buzzer-bright)" stroke-width="4"
+              stroke-dasharray="119.4" stroke-dashoffset="0" transform="rotate(-90 22 22)"/>
+          </svg>
+          <span id="countdownNum">10</span>
+        </div>
+        <input type="text" id="answerInput" autocomplete="off" placeholder="Type your answer, then press Enter…">
+        <button class="submitBtn" id="submitAnswerBtn">Submit</button>
       </div>
-      <input type="text" id="answerInput" autocomplete="off" placeholder="Type your answer, then press Enter…">
-      <button class="submitBtn" id="submitAnswerBtn">Submit</button>
     </div>
 
     <div class="answer-wrap" id="answerWrap">
@@ -327,7 +335,7 @@
       <div class="answerline" id="answerText"></div>
       <div class="given-answer-line" id="givenAnswerLine"></div>
       <div class="meta-line" id="answerMeta"></div>
-      <button class="nextBtn" id="nextBtn">Next question →</button>
+      <button class="nextBtn" id="nextBtn">Next question → <span style="opacity:0.6; font-size:12px; font-family:'Space Mono',monospace;">(n)</span></button>
     </div>
 
     <div class="stats-strip">
@@ -630,6 +638,7 @@ const countdownArc = document.getElementById('countdownArc');
 const countdownNum = document.getElementById('countdownNum');
 const judgeBadge = document.getElementById('judgeBadge');
 const givenAnswerLine = document.getElementById('givenAnswerLine');
+const promptMsg = document.getElementById('promptMsg');
 
 const BUZZ_SECONDS = 10;
 const GRACE_SECONDS = 5;
@@ -709,7 +718,7 @@ function buzz(){
   enterBuzzedInput();
 }
 
-function enterBuzzedInput(){
+function enterBuzzedInput(promptText){
   state.phase = 'buzzed';
   readControls.style.display = 'none';
   readHint.style.display = 'none';
@@ -718,6 +727,15 @@ function enterBuzzedInput(){
   answerInput.disabled = false;
   countdownNum.textContent = String(BUZZ_SECONDS);
   countdownArc.style.strokeDashoffset = '0';
+
+  if(promptText){
+    promptMsg.style.display = 'block';
+    promptMsg.textContent = promptText;
+  }else{
+    promptMsg.style.display = 'none';
+    promptMsg.textContent = '';
+  }
+
   setTimeout(() => answerInput.focus(), 20);
 
   state.countdownHandle = startCountdown(BUZZ_SECONDS, (remaining, total) => {
@@ -756,6 +774,12 @@ async function submitAnswer(value, timedOut){
     judgement = (ans.includes(guess) || guess.includes(ans)) ? 'accept' : 'reject';
   }
 
+  if(judgement === 'prompt'){
+    // give them a fresh full-length timer to answer again, as many times as prompts keep coming
+    enterBuzzedInput(directedPrompt ? `Prompt: ${directedPrompt} — answer again` : 'Prompt — be more specific, answer again');
+    return;
+  }
+
   revealFull({ given: trimmed, judgement, directedPrompt });
 }
 
@@ -770,6 +794,10 @@ document.addEventListener('keydown', (e) => {
   if(e.code === 'Space' && (state.phase === 'reading' || state.phase === 'grace')){
     e.preventDefault();
     buzz();
+  }
+  if((e.key === 'n' || e.key === 'N') && state.phase === 'answer'){
+    e.preventDefault();
+    nextQuestion();
   }
 });
 
