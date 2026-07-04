@@ -131,6 +131,14 @@
   .qtext .power{ color:var(--brass); }
   .cursor{ display:inline-block; width:9px; height:20px; background:var(--brass); margin-left:2px; vertical-align:-3px; animation:blink 1s steps(1) infinite; }
   @keyframes blink{ 50%{opacity:0;} }
+  .powerMark{
+    display:inline-block; background:rgba(201,162,75,0.18); color:var(--brass); border:1px solid var(--brass-dim);
+    border-radius:10px; padding:1px 9px; font-size:0.7em; font-weight:700; letter-spacing:0.5px; vertical-align:2px;
+  }
+  .buzzMark{
+    display:inline-block; background:rgba(193,39,45,0.18); color:var(--buzzer-bright); border:1px solid var(--buzzer);
+    border-radius:10px; padding:1px 9px; font-size:0.7em; font-weight:700; letter-spacing:0.5px; vertical-align:2px;
+  }
 
   .controls{ display:flex; align-items:center; justify-content:center; gap:18px; }
   .buzz{
@@ -403,7 +411,8 @@ let state = {
   words: [],
   wordIdx: 0,
   powerIndex: -1,
-  wasPowerBuzz: false
+  wasPowerBuzz: false,
+  buzzWordIdx: null
 };
 
 // ---------- SETUP UI ----------
@@ -707,6 +716,7 @@ function nextQuestion(){
   state.words = parsed.words;
   state.powerIndex = parsed.powerIndex;
   state.wasPowerBuzz = false;
+  state.buzzWordIdx = null;
   state.wordIdx = 0;
   state.phase = 'reading';
 
@@ -752,6 +762,7 @@ function buzz(){
   clearAllTimers();
   buzzBtn.disabled = true;
   state.wasPowerBuzz = state.powerIndex >= 0 && state.wordIdx <= state.powerIndex;
+  state.buzzWordIdx = state.wordIdx;
   enterBuzzedInput();
 }
 
@@ -844,11 +855,34 @@ function deadQuestion(){
   revealFull({ given: null, judgement: 'dead' });
 }
 
+function buildRevealedHtml(){
+  const markers = [];
+  if(state.powerIndex >= 0){
+    markers.push({ idx: state.powerIndex, order: 0, html: '<span class="powerMark" title="Power mark — buzzing before this point earns power">⚡ POWER</span>' });
+  }
+  if(state.buzzWordIdx !== null && state.buzzWordIdx !== undefined){
+    markers.push({ idx: state.buzzWordIdx, order: 1, html: '<span class="buzzMark" title="Where you buzzed">\u25CF BUZZ</span>' });
+  }
+  markers.sort((a, b) => (a.idx - b.idx) || (a.order - b.order));
+
+  if(markers.length === 0) return escapeHtml(state.words.join(' '));
+
+  let html = '';
+  let cursor = 0;
+  for(const m of markers){
+    const chunk = state.words.slice(cursor, m.idx).map(escapeHtml).join(' ');
+    html += chunk + (chunk ? ' ' : '') + m.html + ' ';
+    cursor = m.idx;
+  }
+  html += state.words.slice(cursor).map(escapeHtml).join(' ');
+  return html;
+}
+
 function revealFull({ given, judgement, directedPrompt }){
   clearAllTimers();
   state.phase = 'answer';
   const tu = state.pool[state.idx];
-  qtextEl.innerHTML = escapeHtml(state.words.join(' '));
+  qtextEl.innerHTML = buildRevealedHtml();
   readControls.style.display = 'none';
   readHint.style.display = 'none';
   readHint.classList.remove('grace');
