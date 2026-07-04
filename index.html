@@ -102,6 +102,20 @@
     padding:9px 10px; font-family:'Inter'; font-size:13.5px; width:100%;
   }
   .hint{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  .toggle-row{ display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .switch{ position:relative; display:inline-block; width:42px; height:24px; flex:none; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider-pill{
+    position:absolute; inset:0; background:var(--panel-2); border:1px solid var(--hair); border-radius:24px;
+    transition:background .15s ease; cursor:pointer;
+  }
+  .slider-pill::before{
+    content:''; position:absolute; height:16px; width:16px; left:3px; top:3px; background:var(--muted);
+    border-radius:50%; transition:transform .15s ease, background .15s ease;
+  }
+  .switch input:checked + .slider-pill{ background:rgba(201,162,75,0.25); border-color:var(--brass-dim); }
+  .switch input:checked + .slider-pill::before{ transform:translateX(18px); background:var(--brass); }
+  .toggle-text{ font-size:13.5px; color:var(--parchment); }
   .startBtn{
     width:100%; padding:15px; margin-top:8px; border:none; border-radius:var(--radius);
     background:var(--buzzer); color:#fff; font-family:'Fraunces',serif; font-weight:600; font-size:16px;
@@ -292,6 +306,17 @@
       <div class="hint">Lower = drill only the most repeated answers (e.g. Napoleon, mitochondria). Higher = wider net, still capped to the canon.</div>
     </div>
 
+    <div class="field">
+      <label class="toggle-row" for="powerOnlyToggle">
+        <span class="switch">
+          <input type="checkbox" id="powerOnlyToggle">
+          <span class="slider-pill"></span>
+        </span>
+        <span class="toggle-text">Only questions with a power mark</span>
+      </label>
+      <div class="hint">Some tossups (novice sets, some easier formats) don't use power at all. Turn this on to drill only ones that do.</div>
+    </div>
+
     <button class="startBtn" id="startBtn" disabled>Pick a category to begin</button>
     <div class="status-line" id="statusLine"></div>
   </section>
@@ -412,6 +437,7 @@ let state = {
   wordIdx: 0,
   powerIndex: -1,
   wasPowerBuzz: false,
+  powerOnly: false,
   buzzWordIdx: null
 };
 
@@ -508,6 +534,11 @@ const speedVal = document.getElementById('speedVal');
 speedSlider.oninput = () => {
   state.speed = parseInt(speedSlider.value);
   speedVal.textContent = state.speed + ' wps';
+};
+
+const powerOnlyToggle = document.getElementById('powerOnlyToggle');
+powerOnlyToggle.onchange = () => {
+  state.powerOnly = powerOnlyToggle.checked;
 };
 
 // ---------- helpers ----------
@@ -608,6 +639,10 @@ startBtn.onclick = async () => {
       return true;
     });
 
+    if(state.powerOnly){
+      pool = pool.filter(t => /\(\*\)/.test(t.question_sanitized));
+    }
+
     // dedupe by _id
     const seenIds = new Set();
     pool = pool.filter(t => {
@@ -622,7 +657,8 @@ startBtn.onclick = async () => {
     }
 
     if(pool.length === 0){
-      throw new Error('Frequency list came back, but no matching tossups were found after filtering. Try widening difficulty or picking a broader category.');
+      const extra = state.powerOnly ? ' Try turning off "power mark only" — this combination may have too few powered tossups.' : ' Try widening difficulty or picking a broader category.';
+      throw new Error('Frequency list came back, but no matching tossups were found after filtering.' + extra);
     }
 
     state.pool = pool;
@@ -632,7 +668,7 @@ startBtn.onclick = async () => {
 
     const subLabel = state.subcategory || state.altSubcategory;
     document.getElementById('catBadge').textContent = subLabel ? `${state.category} · ${subLabel}` : state.category;
-    document.getElementById('poolBadge').textContent = `${pool.length} tossups · top ${freqList.length} answers`;
+    document.getElementById('poolBadge').textContent = `${pool.length} tossups · top ${freqList.length} answers` + (state.powerOnly ? ' · power only' : '');
 
     document.getElementById('setupScreen').style.display = 'none';
     document.getElementById('playScreen').style.display = 'flex';
