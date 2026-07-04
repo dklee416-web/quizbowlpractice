@@ -181,6 +181,7 @@
     padding:6px 18px; border-radius:20px; display:none;
   }
   .judgeBadge.accept{ background:rgba(107,143,113,0.18); color:#a8d0ae; border:1px solid #4c6b50; display:block; }
+  .judgeBadge.power{ background:rgba(201,162,75,0.18); color:var(--brass); border:1px solid var(--brass-dim); display:block; }
   .judgeBadge.reject{ background:rgba(193,39,45,0.15); color:var(--buzzer-bright); border:1px solid var(--buzzer); display:block; }
   .judgeBadge.prompt{ background:rgba(201,162,75,0.15); color:var(--brass); border:1px solid var(--brass-dim); display:block; }
   .judgeBadge.dead{ background:rgba(168,156,138,0.12); color:var(--muted); border:1px solid var(--hair); display:block; }
@@ -342,6 +343,7 @@
       <div>Seen <b id="statSeen">0</b></div>
       <div>Got <b id="statGot">0</b></div>
       <div>Missed <b id="statMissed">0</b></div>
+      <div>Power <b id="statPower" style="color:var(--brass);">0</b></div>
     </div>
   </section>
 </main>
@@ -394,12 +396,14 @@ let state = {
   pool: [],
   freqMap: {},
   idx: -1,
-  seen: 0, got: 0, missed: 0,
+  seen: 0, got: 0, missed: 0, power: 0,
   revealTimer: null,
   countdownHandle: null,
   phase: 'reading',
   words: [],
-  wordIdx: 0
+  wordIdx: 0,
+  powerIndex: -1,
+  wasPowerBuzz: false
 };
 
 // ---------- SETUP UI ----------
@@ -583,6 +587,18 @@ startBtn.onclick = async () => {
     }, 8);
 
     let pool = results.flat().filter(Boolean);
+
+    // Guard against loose phrase matches: qbreader's answer search matches the phrase
+    // anywhere in the answerline (including accept clauses), which can occasionally pull in
+    // a tossup from the wrong category/subcategory if that phrase happens to appear there too.
+    // Strictly re-check every result against the filters we actually asked for.
+    pool = pool.filter(t => {
+      if(t.category !== state.category) return false;
+      if(state.subcategory && t.subcategory !== state.subcategory) return false;
+      if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
+      return true;
+    });
+
     // dedupe by _id
     const seenIds = new Set();
     pool = pool.filter(t => {
@@ -597,12 +613,12 @@ startBtn.onclick = async () => {
     }
 
     if(pool.length === 0){
-      throw new Error('Frequency list came back, but no matching tossups were found. Try widening difficulty or picking a broader category.');
+      throw new Error('Frequency list came back, but no matching tossups were found after filtering. Try widening difficulty or picking a broader category.');
     }
 
     state.pool = pool;
     state.idx = -1;
-    state.seen = 0; state.got = 0; state.missed = 0;
+    state.seen = 0; state.got = 0; state.missed = 0; state.power = 0;
     updateStats();
 
     const subLabel = state.subcategory || state.altSubcategory;
@@ -665,12 +681,32 @@ function startCountdown(seconds, onTick, onExpire){
   return () => clearInterval(iv);
 }
 
+function parsePowerWords(text){
+  const raw = text.split(/\s+/);
+  const words = [];
+  let powerIndex = -1;
+  for(const tok of raw){
+    if(/\(\*\)/.test(tok)){
+      // this token is (or contains) the power marker; strip it out and record the boundary
+      if(powerIndex === -1) powerIndex = words.length;
+      const rest = tok.replace(/\(\*\)/g, '');
+      if(rest) words.push(rest);
+    }else{
+      words.push(tok);
+    }
+  }
+  return { words, powerIndex };
+}
+
 function nextQuestion(){
   clearAllTimers();
   state.idx++;
   if(state.idx >= state.pool.length) state.idx = 0; // loop back once exhausted
   const tu = state.pool[state.idx];
-  state.words = tu.question_sanitized.split(/\s+/);
+  const parsed = parsePowerWords(tu.question_sanitized);
+  state.words = parsed.words;
+  state.powerIndex = parsed.powerIndex;
+  state.wasPowerBuzz = false;
   state.wordIdx = 0;
   state.phase = 'reading';
 
@@ -715,6 +751,7 @@ function buzz(){
   if(state.phase !== 'reading' && state.phase !== 'grace') return;
   clearAllTimers();
   buzzBtn.disabled = true;
+  state.wasPowerBuzz = state.powerIndex >= 0 && state.wordIdx <= state.powerIndex;
   enterBuzzedInput();
 }
 
@@ -818,8 +855,11 @@ function revealFull({ given, judgement, directedPrompt }){
   answerInputWrap.style.display = 'none';
   answerWrap.style.display = 'flex';
 
+  const isPower = judgement === 'accept' && state.wasPowerBuzz;
+
   judgeBadge.className = 'judgeBadge';
-  if(judgement === 'accept'){ judgeBadge.classList.add('accept'); judgeBadge.textContent = '✓ Correct'; }
+  if(isPower){ judgeBadge.classList.add('power'); judgeBadge.textContent = '⚡ Power!'; }
+  else if(judgement === 'accept'){ judgeBadge.classList.add('accept'); judgeBadge.textContent = '✓ Correct'; }
   else if(judgement === 'reject'){ judgeBadge.classList.add('reject'); judgeBadge.textContent = '✗ Incorrect'; }
   else if(judgement === 'prompt'){ judgeBadge.classList.add('prompt'); judgeBadge.textContent = 'Prompt' + (directedPrompt ? ' — ' + directedPrompt : ''); }
   else if(judgement === 'timeout'){ judgeBadge.classList.add('dead'); judgeBadge.textContent = "Time's up"; }
@@ -841,8 +881,12 @@ function revealFull({ given, judgement, directedPrompt }){
     `${tu.set ? tu.set.name : ''}${tu.set && tu.set.year ? ' \'' + String(tu.set.year).slice(2) : ''} · difficulty ${tu.difficulty} · ${tu.category}${tu.subcategory ? ' / ' + tu.subcategory : ''}`;
 
   state.seen++;
-  if(judgement === 'accept') state.got++;
-  else state.missed++;
+  if(judgement === 'accept'){
+    state.got++;
+    if(isPower) state.power++;
+  }else{
+    state.missed++;
+  }
   updateStats();
 }
 
@@ -852,6 +896,7 @@ function updateStats(){
   document.getElementById('statSeen').textContent = state.seen;
   document.getElementById('statGot').textContent = state.got;
   document.getElementById('statMissed').textContent = state.missed;
+  document.getElementById('statPower').textContent = state.power;
 }
 
 document.getElementById('exitBtn').onclick = () => {
