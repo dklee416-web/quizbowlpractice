@@ -102,6 +102,38 @@
     padding:9px 10px; font-family:'Inter'; font-size:13.5px; width:100%;
   }
   .hint{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; }
+
+  .answer-select-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .answer-select-lbl{ font-size:13px; color:var(--muted); }
+  #selectTopInput{
+    width:64px; background:var(--panel-2); border:1px solid var(--hair); color:var(--parchment);
+    border-radius:var(--radius); padding:7px 8px; font-family:'Space Mono',monospace; font-size:14px;
+    text-align:center;
+  }
+  #selectTopInput:focus{ outline:none; border-color:var(--brass-dim); }
+  .mini-btn{
+    background:none; border:1px solid var(--hair); color:var(--muted); padding:6px 12px;
+    border-radius:var(--radius); font-family:'Inter'; font-size:12.5px; cursor:pointer;
+  }
+  .mini-btn:hover{ border-color:var(--brass-dim); color:var(--parchment); }
+  .answer-select-count{ margin-left:auto; font-size:12px; color:var(--brass); font-family:'Space Mono',monospace; }
+  .answer-checklist{
+    margin-top:14px; max-height:280px; overflow-y:auto; border:1px solid var(--hair);
+    border-radius:var(--radius); background:var(--panel-2); padding:4px;
+  }
+  .answer-row{
+    display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:3px; cursor:pointer;
+  }
+  .answer-row:hover{ background:rgba(201,162,75,0.08); }
+  .answer-row input[type=checkbox]{
+    width:15px; height:15px; accent-color:var(--brass); cursor:pointer; flex-shrink:0;
+  }
+  .answer-row .a-rank{ font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); width:28px; flex-shrink:0; text-align:right; }
+  .answer-row .a-name{ flex:1; font-size:13.5px; color:var(--parchment); }
+  .answer-row .a-freq{ font-family:'Space Mono',monospace; font-size:11.5px; color:var(--muted); flex-shrink:0; }
+  .answer-checklist::-webkit-scrollbar{ width:9px; }
+  .answer-checklist::-webkit-scrollbar-track{ background:transparent; }
+  .answer-checklist::-webkit-scrollbar-thumb{ background:var(--hair); border-radius:5px; }
   .toggle-row{ display:flex; align-items:center; gap:12px; cursor:pointer; }
   .switch{ position:relative; display:inline-block; width:42px; height:24px; flex:none; }
   .switch input{ opacity:0; width:0; height:0; }
@@ -361,13 +393,20 @@
       </div>
     </div>
 
-    <div class="field">
-      <label>Frequency depth — top <span id="depthLabel" style="color:var(--parchment);">30</span> answers</label>
-      <div class="slider-row">
-        <input type="range" id="depthSlider" min="10" max="200" value="30" step="5">
-        <span class="slider-val" id="depthVal">30</span>
+    <div class="field" id="answerListField" style="display:none;">
+      <label>Answers to drill <span style="color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">(top 200 shown, most frequent first)</span></label>
+      <div class="answer-select-row">
+        <span class="answer-select-lbl">Select top</span>
+        <input type="number" id="selectTopInput" min="0" max="200" value="30">
+        <span class="answer-select-lbl" id="answerListMax">of 200</span>
+        <button type="button" class="mini-btn" id="selectAllBtn">All</button>
+        <button type="button" class="mini-btn" id="selectNoneBtn">None</button>
+        <span class="answer-select-count" id="selectedCount"></span>
       </div>
-      <div class="hint">Lower = drill only the most repeated answers (e.g. Napoleon, mitochondria). Higher = wider net, still capped to the canon.</div>
+      <div class="hint">Check the ones you actually want tested — great for drilling a single stubborn answer instead of the whole list.</div>
+      <div class="answer-checklist" id="answerChecklist">
+        <div class="hint">Pick a category (and subcategory, if you want) to load its answer list.</div>
+      </div>
     </div>
 
     <div class="field">
@@ -519,8 +558,11 @@ let state = {
   altSubcategory: null,
   diffMin: 1,
   diffMax: 10,
-  depth: 30,
   speed: 4,
+  fullFreqList: [],
+  selectedAnswers: new Set(),
+  topN: 30,
+  answerListLoading: false,
   pool: [],
   freqMap: {},
   idx: -1,
@@ -593,6 +635,7 @@ function selectCategory(cat, chipEl){
 
   startBtn.disabled = false;
   startBtn.textContent = 'Start drill';
+  loadAnswerList();
 }
 
 function selectSubcategory(sub, alt, chipEl){
@@ -600,6 +643,7 @@ function selectSubcategory(sub, alt, chipEl){
   state.altSubcategory = alt;
   [...subcategoryChips.children].forEach(c => c.classList && c.classList.remove('active'));
   chipEl.classList.add('active');
+  loadAnswerList();
 }
 
 // difficulty dropdowns
@@ -613,16 +657,137 @@ for(let i=1;i<=10;i++){
   diffMinSel.appendChild(o1);
   diffMaxSel.appendChild(o2);
 }
-diffMinSel.onchange = () => state.diffMin = parseInt(diffMinSel.value);
-diffMaxSel.onchange = () => state.diffMax = parseInt(diffMaxSel.value);
+diffMinSel.onchange = () => { state.diffMin = parseInt(diffMinSel.value); loadAnswerList(); };
+diffMaxSel.onchange = () => { state.diffMax = parseInt(diffMaxSel.value); loadAnswerList(); };
 
-const depthSlider = document.getElementById('depthSlider');
-const depthVal = document.getElementById('depthVal');
-const depthLabel = document.getElementById('depthLabel');
-depthSlider.oninput = () => {
-  state.depth = parseInt(depthSlider.value);
-  depthVal.textContent = state.depth;
-  depthLabel.textContent = state.depth;
+// ---------- ANSWER CHECKLIST ----------
+const answerListField = document.getElementById('answerListField');
+const answerChecklist = document.getElementById('answerChecklist');
+const selectTopInput = document.getElementById('selectTopInput');
+const selectAllBtn = document.getElementById('selectAllBtn');
+const selectNoneBtn = document.getElementById('selectNoneBtn');
+const selectedCount = document.getElementById('selectedCount');
+const answerListMax = document.getElementById('answerListMax');
+
+let answerListReqId = 0;
+
+async function loadAnswerList(){
+  if(!state.category) return;
+  answerListField.style.display = 'block';
+  state.answerListLoading = true;
+  state.fullFreqList = [];
+  state.selectedAnswers = new Set();
+  answerChecklist.innerHTML = '<div class="hint">Loading top 200 answers…</div>';
+  selectedCount.textContent = '';
+  answerListMax.textContent = 'of 200';
+  const myReqId = ++answerListReqId;
+
+  try{
+    const freqParams = {
+      category: state.category,
+      subcategory: state.subcategory || undefined,
+      alternateSubcategory: state.altSubcategory || undefined,
+      difficulties: diffArray(),
+      limit: 200,
+      questionType: 'tossup'
+    };
+    const freqData = await fetchJSON(`${API}/frequency-list?${qs(freqParams)}`);
+    if(myReqId !== answerListReqId) return; // a newer request superseded this one
+
+    let freqList = freqData.frequencyList || [];
+    freqList = freqList.map(normalizeFreqItem);
+    freqList = freqList.slice().sort((a,b) => (b.frequency ?? -Infinity) - (a.frequency ?? -Infinity));
+    state.fullFreqList = freqList;
+    answerListMax.textContent = `of ${freqList.length}`;
+
+    if(freqList.length === 0){
+      answerChecklist.innerHTML = '<div class="hint">No frequency data for that combination — try a broader category or difficulty range.</div>';
+      state.answerListLoading = false;
+      return;
+    }
+
+    // default: top 30 (or fewer if the list is shorter) checked
+    const defaultN = Math.min(30, freqList.length);
+    selectTopInput.value = defaultN;
+    state.topN = defaultN;
+    state.selectedAnswers = new Set(freqList.slice(0, defaultN).map(f => f.answer));
+
+    renderAnswerChecklist();
+  }catch(err){
+    if(myReqId !== answerListReqId) return;
+    answerChecklist.innerHTML = `<div class="hint" style="color:var(--buzzer-bright);">Couldn't load the answer list: ${escapeHtml(err.message)}</div>`;
+  }
+  state.answerListLoading = false;
+}
+
+function renderAnswerChecklist(){
+  answerChecklist.innerHTML = '';
+  state.fullFreqList.forEach((f, i) => {
+    const row = document.createElement('label');
+    row.className = 'answer-row';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = state.selectedAnswers.has(f.answer);
+    cb.onchange = () => {
+      if(cb.checked) state.selectedAnswers.add(f.answer);
+      else state.selectedAnswers.delete(f.answer);
+      updateSelectedCount();
+    };
+
+    const rank = document.createElement('span');
+    rank.className = 'a-rank';
+    rank.textContent = '#' + (i+1);
+
+    const name = document.createElement('span');
+    name.className = 'a-name';
+    name.textContent = f.answer;
+
+    const freq = document.createElement('span');
+    freq.className = 'a-freq';
+    freq.textContent = (typeof f.frequency === 'number') ? f.frequency + 'x' : '—';
+
+    row.appendChild(cb);
+    row.appendChild(rank);
+    row.appendChild(name);
+    row.appendChild(freq);
+    answerChecklist.appendChild(row);
+  });
+  updateSelectedCount();
+}
+
+function updateSelectedCount(){
+  selectedCount.textContent = `${state.selectedAnswers.size} selected`;
+}
+
+selectTopInput.oninput = () => {
+  let n = parseInt(selectTopInput.value, 10);
+  if(isNaN(n) || n < 0) n = 0;
+  if(n > state.fullFreqList.length) n = state.fullFreqList.length;
+  state.topN = n;
+  state.selectedAnswers = new Set(state.fullFreqList.slice(0, n).map(f => f.answer));
+  // reflect the new selection in the existing checkbox rows without a full rebuild
+  [...answerChecklist.querySelectorAll('.answer-row')].forEach((row, i) => {
+    const cb = row.querySelector('input[type=checkbox]');
+    if(cb) cb.checked = i < n;
+  });
+  updateSelectedCount();
+};
+
+selectAllBtn.onclick = () => {
+  state.selectedAnswers = new Set(state.fullFreqList.map(f => f.answer));
+  selectTopInput.value = state.fullFreqList.length;
+  state.topN = state.fullFreqList.length;
+  [...answerChecklist.querySelectorAll('input[type=checkbox]')].forEach(cb => cb.checked = true);
+  updateSelectedCount();
+};
+
+selectNoneBtn.onclick = () => {
+  state.selectedAnswers = new Set();
+  selectTopInput.value = 0;
+  state.topN = 0;
+  [...answerChecklist.querySelectorAll('input[type=checkbox]')].forEach(cb => cb.checked = false);
+  updateSelectedCount();
 };
 
 const speedSlider = document.getElementById('speedSlider');
@@ -1485,6 +1650,29 @@ async function runPool(items, worker, concurrency){
   return results;
 }
 
+let loggedFreqShapeWarning = false;
+function normalizeFreqItem(item){
+  // The docs say frequency-list items look like { answer, frequency }, but
+  // guard against the live API using a different key (e.g. count) so the
+  // list never silently shows "undefinedx" instead of a real number.
+  const candidateKeys = ['frequency', 'count', 'freq', 'occurrences', 'timesAsked', 'total', 'num'];
+  let freq;
+  for(const key of candidateKeys){
+    if(typeof item[key] === 'number'){ freq = item[key]; break; }
+  }
+  if(freq === undefined){
+    for(const key of Object.keys(item)){
+      if(key === 'answer') continue;
+      if(typeof item[key] === 'number'){ freq = item[key]; break; }
+    }
+  }
+  if(freq === undefined && !loggedFreqShapeWarning){
+    loggedFreqShapeWarning = true;
+    console.warn('Canonball: unrecognized frequency-list item shape', item);
+  }
+  return { answer: item.answer, frequency: freq };
+}
+
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -1498,19 +1686,16 @@ startBtn.onclick = async () => {
   statusLine.textContent = 'Fetching frequency list…';
 
   try{
-    const freqParams = {
-      category: state.category,
-      subcategory: state.subcategory || undefined,
-      alternateSubcategory: state.altSubcategory || undefined,
-      difficulties: diffArray(),
-      limit: state.depth,
-      questionType: 'tossup'
-    };
-    const freqData = await fetchJSON(`${API}/frequency-list?${qs(freqParams)}`);
-    const freqList = freqData.frequencyList || [];
+    if(state.answerListLoading){
+      throw new Error('Still loading the answer list — give it a second and try again.');
+    }
+    const freqList = state.fullFreqList.filter(f => state.selectedAnswers.has(f.answer));
 
-    if(freqList.length === 0){
+    if(state.fullFreqList.length === 0){
       throw new Error('No frequency data for that combination — try a broader category or difficulty range.');
+    }
+    if(freqList.length === 0){
+      throw new Error('No answers selected — check at least one answer, or raise the "select top" number above 0.');
     }
 
     state.freqMap = {};
