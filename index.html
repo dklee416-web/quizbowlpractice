@@ -465,6 +465,11 @@
       <div class="chip-grid" id="triggerSubcategoryChips"><span class="hint">Pick a category first.</span></div>
     </div>
 
+    <div class="field" id="triggerDiffBandField" style="display:none;">
+      <label>Difficulty band</label>
+      <div class="chip-grid" id="triggerDiffBandChips"></div>
+    </div>
+
     <input type="text" class="trigger-filter" id="triggerFilter" placeholder="Filter by answer…" style="display:none;">
 
     <div id="triggerContent"></div>
@@ -634,27 +639,226 @@ powerOnlyToggle.onchange = () => {
 
 // ---------- TRIGGER NOTES ----------
 // Static study data, hand-authored (not fetched live) — see README note below.
-// Shape: TRIGGER_NOTES[category][subcategoryOrAltSubcategory] = { [answer]: { common: [...], niche: [...] } }
+// Shape: TRIGGER_NOTES[category][subcategoryOrAltSubcategory][diffBandKey] = { [answer]: { common: [...], niche: [...] } }
 // "common" = facts/clues that come up early and broadly for that answer — safe, high-frequency buzzes.
 // "niche"  = sharper, less-obvious facts — the kind that get you power if you know them cold.
+// Batches are authored per difficulty band (see DIFF_BANDS below) since the facts worth knowing
+// shift as difficulty climbs — easy answers get common-knowledge clues, hard ones need finer detail.
 //
-// Example of the expected shape (left commented out; nothing is populated yet):
+// Example of the expected shape (left commented out; illustrates one populated band):
 // const TRIGGER_NOTES = {
 //   "Science": {
 //     "Math": {
-//       "Integral": {
-//         common: ["Fubini's theorem", "u-substitution", "the fundamental theorem of calculus"],
-//         niche:  ["line integral form", "double/triple integral form", "Riemann sum definition"]
+//       "1-3": {
+//         "Integral": {
+//           common: ["Fubini's theorem", "u-substitution", "the fundamental theorem of calculus"],
+//           niche:  ["line integral form", "double/triple integral form", "Riemann sum definition"]
+//         }
 //       }
 //     }
 //   }
 // };
-const TRIGGER_NOTES = {};
+const DIFF_BANDS = [
+  { key: "1-3", label: "1–3 (easier)" },
+  { key: "4-6", label: "4–6 (medium)" },
+  { key: "7-10", label: "7–10 (harder)" }
+];
 
-let triggerState = { category: null, subcategory: null, altSubcategory: null };
+const TRIGGER_NOTES = {
+  "Fine Arts": {
+    "Auditory Fine Arts": {
+      "1-3": {
+        "Wolfgang Amadeus Mozart": {
+          common: ["child prodigy, composed 1st symphony at age 8", "Requiem left unfinished, completed by Süssmayr", "Eine Kleine Nachtmusik", "The Magic Flute — Queen of the Night, 'Der Hölle Rache'"],
+          niche: ["only two minor-key symphonies: 'Little' & 'Great' G minor", "Jupiter Symphony (41st) — five-voice fugato finale", "Clarinet Concerto written for Anton Stadler", "Rondo alla Turca (Piano Sonata No. 11)"]
+        },
+        "Johann Sebastian Bach": {
+          common: ["Brandenburg Concertos", "Well-Tempered Clavier — preludes/fugues in every key", "Toccata and Fugue in D minor", "Goldberg Variations"],
+          niche: ["Mass in B minor", "The Musical Offering — theme given by Frederick the Great", "Coffee Cantata", "St. Matthew Passion, revived by Mendelssohn in 1829"]
+        },
+        "Johannes Brahms": {
+          common: ["'Lullaby' (Wiegenlied)", "Hungarian Dances", "A German Requiem", "1st Symphony nicknamed 'Beethoven's Tenth'"],
+          niche: ["Academic Festival Overture (Breslau honorary degree) & its companion Tragic Overture", "Variations on a Theme of Haydn ('St. Anthony Chorale')", "4th Symphony finale is a passacaglia on a Bach cantata"]
+        },
+        "Aaron Copland": {
+          common: ["Appalachian Spring — Shaker hymn 'Simple Gifts', choreographed by Martha Graham", "Fanfare for the Common Man", "Rodeo — 'Hoe-Down'"],
+          niche: ["Billy the Kid", "A Lincoln Portrait (Gettysburg Address narration)", "El Salón México", "Clarinet Concerto written for Benny Goodman"]
+        },
+        "George Frideric Handel": {
+          common: ["Messiah — 'Hallelujah Chorus'", "Water Music", "Music for the Royal Fireworks"],
+          niche: ["'Zadok the Priest' — played at every British coronation since", "Israel in Egypt"]
+        },
+        "George Gershwin": {
+          common: ["Rhapsody in Blue — opening clarinet glissando", "Porgy and Bess — 'Summertime'", "An American in Paris — taxi horns"],
+          niche: ["Cuban Overture", "Concerto in F", "brother Ira wrote lyrics"]
+        },
+        "Ludwig van Beethoven": {
+          common: ["Symphony No. 5 — 'short-short-short-long' fate motif", "Symphony No. 9 — 'Ode to Joy'", "Moonlight Sonata"],
+          niche: ["Symphony No. 3 'Eroica' — dedication scratched out after Napoleon crowned himself emperor", "Symphony No. 6 'Pastoral' — 'Scene by the Brook'", "Grosse Fuge"]
+        },
+        "The Four Seasons": {
+          common: ["Vivaldi violin concerti", "one of four movements is 'Spring'/'Winter' etc."],
+          niche: ["accompanied by sonnets written by the composer", "viola imitates a barking dog", "part of The Contest Between Harmony and Invention"]
+        },
+        "violin": {
+          common: ["highest-pitched string instrument", "Paganini's 24 Caprices"],
+          niche: ["played by concertmaster of an orchestra", "Stradivarius instruments"]
+        },
+        "Franz Joseph Haydn": {
+          common: ["'Father of the Symphony'/'Father of the String Quartet'", "Surprise Symphony — sudden fortissimo chord", "Farewell Symphony — musicians leave stage one by one"],
+          niche: ["The Creation (oratorio)", "'Emperor' Quartet — melody became the German national anthem", "worked for the Esterházy court"]
+        },
+        "Pyotr Ilyich Tchaikovsky": {
+          common: ["1812 Overture — cannon fire, 'La Marseillaise' vs. 'God Save the Tsar'", "The Nutcracker", "Swan Lake"],
+          niche: ["Symphony No. 6 'Pathétique' — 5/4 'limping waltz' 2nd movement", "Sleeping Beauty"]
+        },
+        "Maurice Ravel": {
+          common: ["Boléro — snare drum ostinato, single repeated crescendo", "orchestrated Mussorgsky's Pictures at an Exhibition"],
+          niche: ["Gaspard de la nuit ('Scarbo', 'Ondine')", "Daphnis et Chloé", "Piano Concerto for the Left Hand (written for Paul Wittgenstein)"]
+        },
+        "Franz Schubert": {
+          common: ["'Unfinished' Symphony (No. 8) — only 2 completed movements", "'Der Erlkönig'", "Trout Quintet"],
+          niche: ["Winterreise / Die schöne Müllerin (song cycles)", "'Great' C major Symphony (No. 9)", "died at 31"]
+        },
+        "trumpet": {
+          common: ["highest-pitched standard brass instrument", "three valves"],
+          niche: ["opens Copland's Fanfare for the Common Man", "close relative: cornet"]
+        },
+        "Claude Debussy": {
+          common: ["'Clair de Lune' (from Suite Bergamasque)", "Prelude to the Afternoon of a Faun — opening flute solo"],
+          niche: ["La Mer", "Children's Corner Suite — 'Golliwog's Cakewalk' (parodies Wagner's Tristan chord)"]
+        },
+        "Igor Stravinsky": {
+          common: ["The Rite of Spring — caused a riot at its 1913 Paris premiere", "The Firebird"],
+          niche: ["Petrushka — bitonal 'Petrushka chord'", "Rite of Spring opens with an unusually high bassoon solo"]
+        },
+        "piano": {
+          common: ["88 keys, black and white", "sustain/damper pedal"],
+          niche: ["jazz greats: Thelonious Monk, Duke Ellington, Dave Brubeck"]
+        },
+        "Richard Wagner": {
+          common: ["Ring Cycle — 'Ride of the Valkyries'", "leitmotif technique"],
+          niche: ["Lohengrin — 'Bridal Chorus'", "Tristan und Isolde — 'Liebestod'", "built the Bayreuth Festival Theater"]
+        },
+        "saxophone": {
+          common: ["jazz woodwind, alto/tenor varieties", "John Coltrane, Charlie Parker"],
+          niche: ["invented by Adolphe Sax"]
+        },
+        "The Planets": {
+          common: ["Gustav Holst orchestral suite", "'Mars, the Bringer of War' — 5/4 ostinato", "'Jupiter, the Bringer of Jollity'"],
+          niche: ["melody from 'Jupiter' became the hymn 'I Vow to Thee, My Country'", "final movement 'Neptune' fades out with offstage women's chorus"]
+        },
+        "flute": {
+          common: ["reedless woodwind, held sideways", "Mozart's The Magic Flute"],
+          niche: ["represents the bird in Peter and the Wolf", "opens Debussy's Prelude to the Afternoon of a Faun"]
+        },
+        "Franz Liszt": {
+          common: ["Hungarian Rhapsodies", "virtuoso pianist, 'Lisztomania'"],
+          niche: ["Transcendental Études", "Mephisto Waltzes", "invented the symphonic poem"]
+        },
+        "Gustav Mahler": {
+          common: ["Symphony of a Thousand (No. 8)", "'Resurrection' Symphony (No. 2)"],
+          niche: ["Symphony No. 1 'Titan' — funeral march based on 'Frère Jacques' in minor", "Das Lied von der Erde (Song of the Earth)"]
+        },
+        "Cello": {
+          common: ["played by Yo-Yo Ma", "Elgar's Cello Concerto in E minor, popularized by Jacqueline du Pré"],
+          niche: ["Bach's six unaccompanied cello suites", "pitched between viola and double bass"]
+        },
+        "clarinet": {
+          common: ["opening glissando of Rhapsody in Blue", "played by Benny Goodman"],
+          niche: ["Mozart's Clarinet Concerto, written for Anton Stadler", "lowest register called the 'chalumeau'"]
+        },
+        "drums": {
+          common: ["jazz rhythm section instrument", "played with sticks or brushes"],
+          niche: ["Buddy Rich, Gene Krupa — famous jazz drummers"]
+        },
+        "Messiah": {
+          common: ["Handel oratorio", "'Hallelujah Chorus'"],
+          niche: ["tradition of audience standing during the Hallelujah Chorus, started by King George II"]
+        },
+        "Robert Schumann": {
+          common: ["married pianist Clara Wieck", "Carnaval (piano suite)"],
+          niche: ["Symphony No. 1 'Spring' and No. 3 'Rhenish'", "used the musical cryptogram A-S-C-H"]
+        },
+        "waltz": {
+          common: ["dance in 3/4 time", "'The Blue Danube' by Johann Strauss II"],
+          niche: ["Chopin's 'Minute Waltz'", "Tchaikovsky's 'Waltz of the Flowers' from The Nutcracker"]
+        },
+        "Antonio Vivaldi": {
+          common: ["The Four Seasons", "nicknamed the 'Red Priest'"],
+          niche: ["The Contest Between Harmony and Invention", "taught at the Ospedale della Pietà orphanage in Venice"]
+        },
+        "Edvard Grieg": {
+          common: ["Peer Gynt Suite — 'Morning Mood', 'In the Hall of the Mountain King'"],
+          niche: ["Norwegian composer", "Piano Concerto in A minor"]
+        },
+        "Nikolai Rimsky-Korsakov": {
+          common: ["Scheherazade", "'Flight of the Bumblebee' (from The Tale of Tsar Saltan)"],
+          niche: ["Capriccio Espagnol", "member of 'The Five' Russian composers"]
+        },
+        "Piano": {
+          common: ["88 keys, black and white", "damper/sustain pedal"],
+          niche: ["jazz greats: Thelonious Monk, Duke Ellington, Dave Brubeck"]
+        },
+        "string quartet": {
+          common: ["two violins, viola, and cello", "Haydn called the 'Father' of this genre"],
+          niche: ["Haydn's 'Emperor' Quartet — melody became the German national anthem"]
+        },
+        "Edward Elgar": {
+          common: ["Enigma Variations — 'Nimrod' movement", "Pomp and Circumstance Marches (played at graduations)"],
+          niche: ["Cello Concerto in E minor, popularized by Jacqueline du Pré", "The Dream of Gerontius"]
+        },
+        "Felix Mendelssohn": {
+          common: ["incidental music to A Midsummer Night's Dream — famous 'Wedding March'", "Hebrides Overture, inspired by Fingal's Cave"],
+          niche: ["'Italian' and 'Scottish' Symphonies", "'Reformation' Symphony (honors the Augsburg Confession)", "revived Bach's St. Matthew Passion"]
+        },
+        "Frederic Chopin": {
+          common: ["'Minute Waltz'", "'Revolutionary' Étude", "Polish composer/pianist, wrote many nocturnes"],
+          niche: ["'Raindrop' Prelude", "inspired by the November Uprising", "Fantaisie-Impromptu"]
+        },
+        "John Philip Sousa": {
+          common: ["'The Stars and Stripes Forever'", "nicknamed the 'March King'"],
+          niche: ["'Semper Fidelis' (US Marine Corps)", "'The Washington Post'"]
+        },
+        "Louis Armstrong": {
+          common: ["nicknamed 'Satchmo'", "gravelly-voiced trumpeter, 'What a Wonderful World'"],
+          niche: ["pioneered scat singing on 'Heebie Jeebies'", "led the Hot Five/Hot Seven bands"]
+        },
+        "marches": {
+          common: ["genre played by military bands", "John Philip Sousa, 'March King'"],
+          niche: ["Elgar's Pomp and Circumstance Marches"]
+        },
+        "Pictures at an Exhibition": {
+          common: ["Modest Mussorgsky piano suite, inspired by Viktor Hartmann's art", "'Promenade' theme recurs between movements", "'The Great Gate of Kiev' finale"],
+          niche: ["orchestrated by Maurice Ravel", "'The Hut on Fowl's/Chicken's Legs' (Baba Yaga)"]
+        },
+        "Bela Bartok": {
+          common: ["Hungarian composer, collected folk songs with Zoltán Kodály", "Concerto for Orchestra"],
+          niche: ["Mikrokosmos (153 progressively harder piano pieces)", "opera Duke Bluebeard's Castle", "namesake 'Bartók pizzicato' (string-snap)"]
+        },
+        "Hector Berlioz": {
+          common: ["Symphonie Fantastique — 'idée fixe' recurring theme", "'March to the Scaffold' movement"],
+          niche: ["Harold in Italy (features solo viola)", "reportedly composed under the influence of opium"]
+        },
+        "John Coltrane": {
+          common: ["A Love Supreme", "Giant Steps"],
+          niche: ["improvisational style dubbed 'sheets of sound'", "jazz rendition of 'My Favorite Things'"]
+        },
+        "pipe organ": {
+          common: ["Bach's Toccata and Fugue in D minor", "large keyboard instrument found in churches"],
+          niche: ["uses foot pedals and 'stops' to control sound"]
+        }
+      }
+    }
+  }
+};
+
+let triggerState = { category: null, subcategory: null, altSubcategory: null, diffBand: null };
 
 const triggerCategoryChips = document.getElementById('triggerCategoryChips');
 const triggerSubcategoryChips = document.getElementById('triggerSubcategoryChips');
+const triggerDiffBandField = document.getElementById('triggerDiffBandField');
+const triggerDiffBandChips = document.getElementById('triggerDiffBandChips');
 const triggerFilter = document.getElementById('triggerFilter');
 const triggerContent = document.getElementById('triggerContent');
 
@@ -670,6 +874,9 @@ function selectTriggerCategory(cat, chipEl){
   triggerState.category = cat;
   triggerState.subcategory = null;
   triggerState.altSubcategory = null;
+  triggerState.diffBand = null;
+  triggerDiffBandField.style.display = 'none';
+  triggerDiffBandChips.innerHTML = '';
   [...triggerCategoryChips.children].forEach(c => c.classList.remove('active'));
   chipEl.classList.add('active');
 
@@ -714,6 +921,33 @@ function selectTriggerSubcategory(sub, alt, chipEl){
   triggerState.altSubcategory = alt;
   [...triggerSubcategoryChips.children].forEach(c => c.classList && c.classList.remove('active'));
   chipEl.classList.add('active');
+
+  triggerDiffBandChips.innerHTML = '';
+  const key = sub || alt;
+  if(!key){
+    triggerState.diffBand = null;
+    triggerDiffBandField.style.display = 'none';
+    renderTriggers();
+    return;
+  }
+
+  triggerDiffBandField.style.display = 'block';
+  triggerState.diffBand = DIFF_BANDS[0].key;
+  DIFF_BANDS.forEach((band, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (i === 0 ? ' active' : '');
+    chip.textContent = band.label;
+    chip.onclick = () => selectTriggerDiffBand(band.key, chip);
+    triggerDiffBandChips.appendChild(chip);
+  });
+
+  renderTriggers();
+}
+
+function selectTriggerDiffBand(bandKey, chipEl){
+  triggerState.diffBand = bandKey;
+  [...triggerDiffBandChips.children].forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
   renderTriggers();
 }
 
@@ -728,15 +962,19 @@ function renderTriggers(){
 
   const key = triggerState.subcategory || triggerState.altSubcategory;
   const catData = TRIGGER_NOTES[triggerState.category] || {};
-  const answers = key ? (catData[key] || {}) : {};
+  const subData = key ? (catData[key] || {}) : {};
+  const answers = (key && triggerState.diffBand) ? (subData[triggerState.diffBand] || {}) : {};
   const answerKeys = Object.keys(answers);
 
   if(answerKeys.length === 0){
     triggerFilter.style.display = 'none';
-    const label = key ? `${triggerState.category} → ${key}` : `${triggerState.category} (pick a subcategory)`;
+    const bandLabel = triggerState.diffBand ? (DIFF_BANDS.find(b => b.key === triggerState.diffBand) || {}).label : null;
+    const label = key
+      ? `${triggerState.category} → ${key}${bandLabel ? ' → ' + bandLabel : ''}`
+      : `${triggerState.category} (pick a subcategory)`;
     const empty = document.createElement('div');
     empty.className = 'trigger-empty';
-    empty.innerHTML = `No trigger notes yet for <b>${escapeHtml(label)}</b>.<br>Ask Claude to build this batch — give a category, subcategory/alt-subcategory, difficulty, and the top answers to cover.`;
+    empty.innerHTML = `No trigger notes yet for <b>${escapeHtml(label)}</b>.<br>Ask Claude to build this batch — give a category, subcategory/alt-subcategory, difficulty band, and the top answers to cover.`;
     triggerContent.appendChild(empty);
     return;
   }
