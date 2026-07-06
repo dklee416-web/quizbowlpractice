@@ -266,10 +266,13 @@ runBtn.onclick = async () => {
   statusEl.textContent = `Fetching top ${state.depth} answers for ${scopeLabel}…`;
 
   try{
+    // Note: unlike /query, the /frequency-list endpoint takes SINGULAR
+    // category/subcategory/alternateSubcategory params, not the plural
+    // forms used elsewhere in this file.
     const freqParams = {
-      categories: state.category,
-      subcategories: state.subcategory || undefined,
-      alternateSubcategories: state.altSubcategory || undefined,
+      category: state.category,
+      subcategory: state.subcategory || undefined,
+      alternateSubcategory: state.altSubcategory || undefined,
       difficulties: diffArray(),
       limit: state.depth,
       questionType: 'tossup'
