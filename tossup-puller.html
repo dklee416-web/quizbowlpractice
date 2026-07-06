@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Canonball — Tossup Puller</title>
+<style>
+  :root{
+    --bg:#1b1a17; --panel:#242220; --panel2:#2c2924; --parchment:#ece4d3; --muted:#948f83;
+    --brass:#c9a24b; --red:#8f3b3b; --line:#3a362f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--parchment); font-family:'Georgia',serif;
+    max-width:820px; margin:0 auto; padding:32px 20px 80px;
+  }
+  h1{ font-size:22px; margin-bottom:4px; }
+  h2{ font-size:13px; text-transform:uppercase; letter-spacing:0.6px; color:var(--brass); margin:26px 0 8px; }
+  p.sub{ color:var(--muted); font-size:14px; line-height:1.5; }
+  .field{ margin-bottom:16px; }
+  label{ display:block; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:8px; }
+  .chip-grid{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    background:var(--panel); border:1px solid var(--line); color:var(--parchment);
+    border-radius:20px; padding:7px 14px; font-size:13px; cursor:pointer; font-family:'Georgia',serif;
+  }
+  .chip:hover{ border-color:var(--brass); }
+  .chip.active{ background:var(--brass); color:#241f16; border-color:var(--brass); font-weight:700; }
+  .chip.dashed{ border-style:dashed; }
+  .alt-label{ width:100%; font-size:11px; color:var(--muted); margin:6px 0 -2px; letter-spacing:0.5px; }
+  select, input[type=number]{
+    background:var(--panel); border:1px solid var(--line); color:var(--parchment);
+    border-radius:6px; padding:8px 10px; font-size:13px; font-family:'Georgia',serif;
+  }
+  .row{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  button{
+    background:var(--brass); color:#241f16; border:none; border-radius:6px;
+    padding:10px 18px; font-size:14px; font-weight:700; cursor:pointer; margin-top:14px;
+  }
+  button:disabled{ opacity:0.5; cursor:default; }
+  button.secondary{ background:transparent; border:1px solid var(--muted); color:var(--parchment); }
+  #status{ font-family:'Courier New',monospace; font-size:13px; color:var(--muted); margin-top:14px; white-space:pre-line; }
+  #preview{
+    margin-top:20px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:14px; max-height:420px; overflow:auto; font-family:'Courier New',monospace;
+    font-size:12.5px; white-space:pre-wrap; display:none;
+  }
+  .hint{ color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+  <h1>Tossup Puller</h1>
+  <p class="sub">
+    Pick a category (and optionally a subcategory or alternate subcategory), a difficulty range, and how
+    many top answers to pull. This fetches the top-N most frequent answers from qbreader's frequency-list
+    endpoint for that scope, then pulls tossups for each one — same public API Canonball itself uses,
+    all client-side in your browser. Download the result as a .txt when done.
+  </p>
+
+  <h2>Category</h2>
+  <div class="field">
+    <div class="chip-grid" id="categoryChips"></div>
+  </div>
+
+  <h2>Subcategory <span style="text-transform:none; letter-spacing:0; color:var(--muted);">(optional)</span></h2>
+  <div class="field">
+    <div class="chip-grid" id="subcategoryChips"><span class="hint">Pick a category first.</span></div>
+  </div>
+
+  <h2>Difficulty range</h2>
+  <div class="field row">
+    <select id="diffMin"></select>
+    <span class="hint">to</span>
+    <select id="diffMax"></select>
+  </div>
+
+  <h2>Depth</h2>
+  <div class="field row">
+    <label style="margin:0;">Top</label>
+    <input type="number" id="depthInput" value="50" min="1" max="200" style="width:80px;">
+    <span class="hint">most frequent answers</span>
+  </div>
+
+  <button id="runBtn" disabled>Fetch tossups</button>
+  <button id="downloadBtn" class="secondary" disabled>Download .txt</button>
+
+  <div id="status"></div>
+  <pre id="preview"></pre>
+
+<script>
+const API = "https://www.qbreader.org/api";
+
+const TAXONOMY = {
+  "Literature": {
+    subs: ["American Literature","British Literature","Classical Literature","European Literature","World Literature","Other Literature"],
+    alts: ["Drama","Long Fiction","Poetry","Short Fiction","Misc Literature"]
+  },
+  "History": {
+    subs: ["American History","Ancient History","European History","World History","Other History"],
+    alts: []
+  },
+  "Science": {
+    subs: ["Biology","Chemistry","Physics","Other Science"],
+    alts: ["Math","Astronomy","Computer Science","Earth Science","Engineering","Misc Science"]
+  },
+  "Fine Arts": {
+    subs: ["Visual Fine Arts","Auditory Fine Arts","Other Fine Arts"],
+    alts: ["Architecture","Dance","Film","Jazz","Musicals","Opera","Photography","Misc Arts"]
+  },
+  "Religion": { subs: [], alts: [] },
+  "Mythology": { subs: [], alts: [] },
+  "Philosophy": { subs: [], alts: [] },
+  "Social Science": {
+    subs: [],
+    alts: ["Anthropology","Economics","Linguistics","Psychology","Sociology","Other Social Science"]
+  },
+  "Current Events": { subs: [], alts: [] },
+  "Geography": { subs: [], alts: [] },
+  "Other Academic": { subs: [], alts: [] },
+  "Trash": { subs: ["Movies","Music","Sports","Television","Video Games","Other Pop Culture"], alts: [] }
+};
+
+let state = { category: null, subcategory: null, altSubcategory: null, diffMin: 1, diffMax: 10, depth: 50 };
+
+const categoryChips = document.getElementById('categoryChips');
+const subcategoryChips = document.getElementById('subcategoryChips');
+const diffMinSel = document.getElementById('diffMin');
+const diffMaxSel = document.getElementById('diffMax');
+const depthInput = document.getElementById('depthInput');
+const runBtn = document.getElementById('runBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const statusEl = document.getElementById('status');
+const previewEl = document.getElementById('preview');
+
+let outputText = '';
+
+Object.keys(TAXONOMY).forEach(cat => {
+  const chip = document.createElement('button');
+  chip.className = 'chip';
+  chip.textContent = cat;
+  chip.onclick = () => selectCategory(cat, chip);
+  categoryChips.appendChild(chip);
+});
+
+function selectCategory(cat, chipEl){
+  state.category = cat;
+  state.subcategory = null;
+  state.altSubcategory = null;
+  [...categoryChips.children].forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+
+  subcategoryChips.innerHTML = '';
+  const { subs, alts } = TAXONOMY[cat];
+
+  const allChip = document.createElement('button');
+  allChip.className = 'chip active';
+  allChip.textContent = 'All of ' + cat;
+  allChip.onclick = () => selectSubcategory(null, null, allChip);
+  subcategoryChips.appendChild(allChip);
+
+  subs.forEach(sub => {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.textContent = sub;
+    chip.onclick = () => selectSubcategory(sub, null, chip);
+    subcategoryChips.appendChild(chip);
+  });
+
+  if(alts.length){
+    const label = document.createElement('div');
+    label.className = 'alt-label';
+    label.textContent = 'ALTERNATE SUBCATEGORIES (finer-grained, cut across the above)';
+    subcategoryChips.appendChild(label);
+
+    alts.forEach(alt => {
+      const chip = document.createElement('button');
+      chip.className = 'chip dashed';
+      chip.textContent = alt;
+      chip.onclick = () => selectSubcategory(null, alt, chip);
+      subcategoryChips.appendChild(chip);
+    });
+  }
+
+  runBtn.disabled = false;
+}
+
+function selectSubcategory(sub, alt, chipEl){
+  state.subcategory = sub;
+  state.altSubcategory = alt;
+  [...subcategoryChips.children].forEach(c => c.classList && c.classList.remove('active'));
+  chipEl.classList.add('active');
+}
+
+for(let i=1;i<=10;i++){
+  const o1 = document.createElement('option'); o1.value=i; o1.textContent = 'Min diff: '+i;
+  const o2 = document.createElement('option'); o2.value=i; o2.textContent = 'Max diff: '+i;
+  if(i===1) o1.selected = true;
+  if(i===10) o2.selected = true;
+  diffMinSel.appendChild(o1);
+  diffMaxSel.appendChild(o2);
+}
+diffMinSel.onchange = () => state.diffMin = parseInt(diffMinSel.value);
+diffMaxSel.onchange = () => state.diffMax = parseInt(diffMaxSel.value);
+depthInput.onchange = () => state.depth = Math.max(1, parseInt(depthInput.value) || 50);
+
+function qs(params){
+  return Object.entries(params)
+    .filter(([,v]) => v !== undefined && v !== null && v !== '')
+    .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+}
+
+function diffArray(){
+  const arr = [];
+  for(let i=state.diffMin;i<=state.diffMax;i++) arr.push(i);
+  return arr.join(',');
+}
+
+function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+async function fetchJSONWithRetry(url, maxRetries = 5){
+  let attempt = 0;
+  while(true){
+    const res = await fetch(url);
+    if(res.ok) return res.json();
+    if(res.status === 429 && attempt < maxRetries){
+      const wait = 1000 * Math.pow(2, attempt) + Math.random() * 300;
+      attempt++;
+      statusEl.textContent = `Rate limited — backing off ${(wait/1000).toFixed(1)}s (retry ${attempt}/${maxRetries})…`;
+      await sleep(wait);
+      continue;
+    }
+    throw new Error('HTTP ' + res.status);
+  }
+}
+
+// Small concurrency + a fixed delay before each request keeps us comfortably
+// under qbreader's rate limit, with exponential backoff as a second line of defense.
+async function runPool(items, worker, concurrency, delayMs){
+  const results = [];
+  let i = 0;
+  let completed = 0;
+  async function next(){
+    while(i < items.length){
+      const cur = i++;
+      if(delayMs) await sleep(delayMs);
+      try{ results[cur] = await worker(items[cur]); }
+      catch(e){ results[cur] = { error: String(e), item: items[cur] }; }
+      completed++;
+      statusEl.textContent = `Pulling tossups… ${completed}/${items.length} answers done`;
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(concurrency, items.length)}, next));
+  return results;
+}
+
+function escapeNone(s){ return s; }
+
+runBtn.onclick = async () => {
+  if(!state.category) return;
+  runBtn.disabled = true;
+  downloadBtn.disabled = true;
+  previewEl.style.display = 'none';
+  outputText = '';
+
+  const scopeLabel = `${state.category}${state.subcategory ? ' → ' + state.subcategory : ''}${state.altSubcategory ? ' → ' + state.altSubcategory : ''} (difficulty ${state.diffMin}-${state.diffMax})`;
+  statusEl.textContent = `Fetching top ${state.depth} answers for ${scopeLabel}…`;
+
+  try{
+    const freqParams = {
+      category: state.category,
+      subcategory: state.subcategory || undefined,
+      alternateSubcategory: state.altSubcategory || undefined,
+      difficulties: diffArray(),
+      limit: state.depth,
+      questionType: 'tossup'
+    };
+    const freqData = await fetchJSONWithRetry(`${API}/frequency-list?${qs(freqParams)}`);
+    const freqList = freqData.frequencyList || [];
+
+    if(freqList.length === 0){
+      statusEl.textContent = `No frequency data for ${scopeLabel}. Try a broader scope.`;
+      runBtn.disabled = false;
+      return;
+    }
+
+    statusEl.textContent = `Found ${freqList.length} answers. Pulling tossups…`;
+
+    const results = await runPool(freqList, async (f) => {
+      const params = {
+        q: f.answer,
+        questionType: 'tossup',
+        searchType: 'answer',
+        exactPhrase: true,
+        randomize: false,
+        maxReturnLength: 10,
+        category: state.category,
+        subcategory: state.subcategory || undefined,
+        alternateSubcategories: state.altSubcategory || undefined,
+        difficulties: diffArray()
+      };
+      const data = await fetchJSONWithRetry(`${API}/query?${qs(params)}`);
+      const arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+      // Strictly re-verify category/subcategory client-side, same guard Canonball uses,
+      // to filter out qbreader's occasional loose answer-phrase matches.
+      const filtered = arr.filter(t => {
+        if(t.category !== state.category) return false;
+        if(state.subcategory && t.subcategory !== state.subcategory) return false;
+        if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
+        return true;
+      });
+      return { answer: f.answer, frequency: f.frequency, tossups: filtered };
+    }, 2, 350);
+
+    let totalTossups = 0;
+    const lines = [];
+    lines.push(`Scope: ${scopeLabel}`);
+    lines.push(`Depth: top ${state.depth} answers`);
+    lines.push('');
+    results.forEach(r => {
+      if(!r || r.error){
+        lines.push(`=== ${r ? r.item.answer || r.item : '?'} — ERROR: ${r ? r.error : 'unknown'} ===\n`);
+        return;
+      }
+      lines.push(`=== ANSWER: ${r.answer} (frequency ${r.frequency}, ${r.tossups.length} tossup${r.tossups.length===1?'':'s'} found) ===`);
+      r.tossups.forEach((t, i) => {
+        totalTossups++;
+        lines.push(`--- [${r.answer} #${i+1}] difficulty ${t.difficulty} ---`);
+        lines.push(`Q: ${t.question}`);
+        lines.push(`A: ${t.answer}`);
+        lines.push('');
+      });
+      lines.push('');
+    });
+
+    outputText = lines.join('\n');
+    statusEl.textContent = `Done. Pulled ${totalTossups} tossups across ${freqList.length} answers.`;
+    previewEl.textContent = outputText.slice(0, 4000) + (outputText.length > 4000 ? '\n\n… (truncated preview — full text in download)' : '');
+    previewEl.style.display = 'block';
+    downloadBtn.disabled = false;
+  }catch(e){
+    statusEl.textContent = `Error: ${e.message || e}`;
+  }
+  runBtn.disabled = false;
+};
+
+downloadBtn.onclick = () => {
+  const safeName = (state.subcategory || state.altSubcategory || state.category)
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const blob = new Blob([outputText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safeName}-diff${state.diffMin}-${state.diffMax}-tossups.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>
