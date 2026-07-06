@@ -267,15 +267,23 @@ runBtn.onclick = async () => {
 
   try{
     const freqParams = {
-      category: state.category,
-      subcategory: state.subcategory || undefined,
-      alternateSubcategory: state.altSubcategory || undefined,
+      categories: state.category,
+      subcategories: state.subcategory || undefined,
+      alternateSubcategories: state.altSubcategory || undefined,
       difficulties: diffArray(),
       limit: state.depth,
       questionType: 'tossup'
     };
     const freqData = await fetchJSONWithRetry(`${API}/frequency-list?${qs(freqParams)}`);
-    const freqList = freqData.frequencyList || [];
+    // The exact field names on each frequency-list entry aren't fully pinned down from
+    // public docs, so fall back across a few plausible names rather than silently
+    // printing "undefined" the way the previous version did.
+    const rawList = freqData.frequencyList || freqData.answers || freqData.list || [];
+    const freqList = rawList.map(entry => {
+      const answer = entry.answer ?? entry.answerline ?? entry.name ?? entry.text;
+      const frequency = entry.frequency ?? entry.count ?? entry.questionCount ?? entry.answerCount ?? entry.n;
+      return { answer, frequency };
+    }).filter(f => f.answer);
 
     if(freqList.length === 0){
       statusEl.textContent = `No frequency data for ${scopeLabel}. Try a broader scope.`;
@@ -286,20 +294,29 @@ runBtn.onclick = async () => {
     statusEl.textContent = `Found ${freqList.length} answers. Pulling tossups…`;
 
     const results = await runPool(freqList, async (f) => {
-      const params = {
+      const buildParams = (exact) => ({
         q: f.answer,
         questionType: 'tossup',
         searchType: 'answer',
-        exactPhrase: true,
+        exactPhrase: exact,
         randomize: false,
         maxReturnLength: 10,
-        category: state.category,
-        subcategory: state.subcategory || undefined,
+        categories: state.category,
+        subcategories: state.subcategory || undefined,
         alternateSubcategories: state.altSubcategory || undefined,
         difficulties: diffArray()
-      };
-      const data = await fetchJSONWithRetry(`${API}/query?${qs(params)}`);
-      const arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+      });
+
+      let data = await fetchJSONWithRetry(`${API}/query?${qs(buildParams(true))}`);
+      let arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+
+      // Short, generic answers (e.g. "gold") have sometimes come back empty under strict
+      // exact-phrase matching even when real tossups exist. Retry loosely before giving up.
+      if(arr.length === 0){
+        data = await fetchJSONWithRetry(`${API}/query?${qs(buildParams(false))}`);
+        arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+      }
+
       // Strictly re-verify category/subcategory client-side, same guard Canonball uses,
       // to filter out qbreader's occasional loose answer-phrase matches.
       const filtered = arr.filter(t => {
