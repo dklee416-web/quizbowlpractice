@@ -6,14 +6,6 @@
 <title>Canonball — Quizbowl Frequency Drills</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;70<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Canonball — Quizbowl Frequency Drills</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -1720,7 +1712,7 @@ startBtn.onclick = async () => {
         questionType: 'tossup',
         searchType: 'answer',
         randomize: true,
-        maxReturnLength: 4,
+        maxReturnLength: 15,
         category: state.category,
         subcategory: state.subcategory || undefined,
         alternateSubcategories: state.altSubcategory || undefined,
@@ -1767,11 +1759,21 @@ startBtn.onclick = async () => {
       pool = pool.filter(t => /\(\*\)/.test(t.question_sanitized));
     }
 
-    // dedupe by _id
+    // Dedupe by _id, AND by normalized question text — quizbowl tossups get
+    // reused/recycled across different packets and sets (especially common,
+    // canon-heavy answers), so the same question can exist twice in the
+    // database under two different _ids. An _id-only check misses that.
     const seenIds = new Set();
+    const seenText = new Set();
     pool = pool.filter(t => {
       if(seenIds.has(t._id)) return false;
       seenIds.add(t._id);
+      const norm = (t.question_sanitized || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const sig = norm.slice(0, 220);
+      if(sig){
+        if(seenText.has(sig)) return false;
+        seenText.add(sig);
+      }
       return true;
     });
     // shuffle
@@ -1891,8 +1893,21 @@ function parsePowerWords(text){
 
 function nextQuestion(){
   clearAllTimers();
+  const prevTossup = (state.idx >= 0 && state.idx < state.pool.length) ? state.pool[state.idx] : null;
   state.idx++;
-  if(state.idx >= state.pool.length) state.idx = 0; // loop back once exhausted
+  if(state.idx >= state.pool.length){
+    // Exhausted the pool — reshuffle instead of silently replaying the exact
+    // same order again, since that's what actually caused perceived "repeats."
+    for(let i = state.pool.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i+1));
+      [state.pool[i], state.pool[j]] = [state.pool[j], state.pool[i]];
+    }
+    state.idx = 0;
+    // avoid the seam itself immediately repeating the last question shown
+    if(prevTossup && state.pool.length > 1 && state.pool[0]._id === prevTossup._id){
+      [state.pool[0], state.pool[1]] = [state.pool[1], state.pool[0]];
+    }
+  }
   const tu = state.pool[state.idx];
   const parsed = parsePowerWords(tu.question_sanitized);
   state.words = parsed.words;
