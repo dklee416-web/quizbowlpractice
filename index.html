@@ -6,6 +6,14 @@
 <title>Canonball — Quizbowl Frequency Drills</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;70<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canonball — Quizbowl Frequency Drills</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -468,7 +476,7 @@
           <circle cx="65" cy="65" r="42" fill="none" stroke="var(--ring-2)" stroke-width="10"/>
           <circle cx="65" cy="65" r="24" fill="none" stroke="var(--ring-1)" stroke-width="10"/>
         </svg>
-        <div class="count"><div class="n" id="freqCount">—</div><div class="lbl">times asked</div></div>
+        <div class="count"><div class="n" id="freqCount">—</div><div class="lbl">freq. rank</div></div>
       </div>
       <div class="answerline" id="answerText"></div>
       <div class="given-answer-line" id="givenAnswerLine"></div>
@@ -565,6 +573,7 @@ let state = {
   answerListLoading: false,
   pool: [],
   freqMap: {},
+  rankMap: {},
   idx: -1,
   seen: 0, got: 0, missed: 0, power: 0,
   revealTimer: null,
@@ -1699,16 +1708,17 @@ startBtn.onclick = async () => {
     }
 
     state.freqMap = {};
+    state.rankMap = {};
+    state.fullFreqList.forEach((f, i) => { state.rankMap[f.answer] = i + 1; });
     freqList.forEach(f => state.freqMap[f.answer] = f.frequency);
 
     statusLine.textContent = `Found ${freqList.length} answers. Pulling matching tossups…`;
 
     const results = await runPool(freqList, async (f) => {
-      const params = {
+      const baseParams = {
         q: f.answer,
         questionType: 'tossup',
         searchType: 'answer',
-        exactPhrase: true,
         randomize: true,
         maxReturnLength: 4,
         category: state.category,
@@ -1716,21 +1726,41 @@ startBtn.onclick = async () => {
         alternateSubcategories: state.altSubcategory || undefined,
         difficulties: diffArray()
       };
-      const data = await fetchJSON(`${API}/query?${qs(params)}`);
-      return (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray.map(t => ({...t, __freqAnswer: f.answer})) : [];
+      const data = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: true})}`);
+      let arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+      // The frequency-list's canonical answer string doesn't always literally
+      // substring-match every stored answerline variant (word order, "the",
+      // diacritics, etc.), which silently starves long-tail answers of hits
+      // even though real matching tossups exist. If the strict phrase search
+      // came up empty, retry loosely — the strict primary-answer filter below
+      // still guards against false positives, so this is safe.
+      if(arr.length === 0){
+        const looseData = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: false})}`);
+        arr = (looseData.tossups && looseData.tossups.questionArray) ? looseData.tossups.questionArray : [];
+      }
+      return arr.map(t => ({...t, __freqAnswer: f.answer}));
     }, 8);
 
     let pool = results.flat().filter(Boolean);
 
     // Guard against loose phrase matches: qbreader's answer search matches the phrase
     // anywhere in the answerline (including accept clauses), which can occasionally pull in
-    // a tossup from the wrong category/subcategory if that phrase happens to appear there too.
-    // Strictly re-check every result against the filters we actually asked for.
+    // a tossup from the wrong category/subcategory, or — more subtly — a tossup whose real,
+    // primary answer is something else entirely but which just happens to *accept* your
+    // target phrase as an alternate. Strictly re-check every result against the filters we
+    // actually asked for, and require the target answer to appear in the primary answer
+    // segment (before the first bracket/paren, where accept/alternate text usually lives)
+    // rather than anywhere in the full answerline.
     pool = pool.filter(t => {
       if(t.category !== state.category) return false;
       if(state.subcategory && t.subcategory !== state.subcategory) return false;
       if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
-      return true;
+
+      const target = (t.__freqAnswer || '').trim().toLowerCase();
+      if(!target) return true;
+      const rawAnswer = (t.answer_sanitized || t.answer || '');
+      const primary = rawAnswer.split(/[\[\(]/)[0].trim().toLowerCase();
+      return primary.length > 0 && primary.includes(target);
     });
 
     if(state.powerOnly){
@@ -1754,6 +1784,27 @@ startBtn.onclick = async () => {
       const extra = state.powerOnly ? ' Try turning off "power mark only" — this combination may have too few powered tossups.' : ' Try widening difficulty or picking a broader category.';
       throw new Error('Frequency list came back, but no matching tossups were found after filtering.' + extra);
     }
+
+    // Diagnostics: how many tossups actually made it into the pool per answer,
+    // bucketed by frequency rank. Open the browser console to check this if the
+    // drill still feels skewed toward the top of the list.
+    try{
+      const perAnswerCount = {};
+      pool.forEach(t => { perAnswerCount[t.__freqAnswer] = (perAnswerCount[t.__freqAnswer] || 0) + 1; });
+      const buckets = [[1,30],[31,70],[71,130],[131,200]];
+      const summary = buckets.map(([lo,hi]) => {
+        const answersInBucket = freqList.filter(f => state.rankMap[f.answer] >= lo && state.rankMap[f.answer] <= hi);
+        const total = answersInBucket.reduce((s,f) => s + (perAnswerCount[f.answer] || 0), 0);
+        return {
+          'rank range': `${lo}-${hi}`,
+          'answers selected': answersInBucket.length,
+          'tossups in pool': total,
+          'avg per answer': answersInBucket.length ? (total / answersInBucket.length).toFixed(2) : '—'
+        };
+      });
+      console.log('Canonball pool diagnostics (per rank bucket):');
+      console.table(summary);
+    }catch(e){ /* diagnostics are best-effort, never block the drill */ }
 
     state.pool = pool;
     state.idx = -1;
@@ -2043,8 +2094,8 @@ function revealFull({ given, judgement, directedPrompt }){
   }
 
   document.getElementById('answerText').innerHTML = tu.answer;
-  const freq = state.freqMap[tu.__freqAnswer];
-  document.getElementById('freqCount').textContent = freq !== undefined ? freq : '—';
+  const rank = state.rankMap ? state.rankMap[tu.__freqAnswer] : undefined;
+  document.getElementById('freqCount').textContent = rank !== undefined ? '#' + rank : '—';
   document.getElementById('answerMeta').textContent =
     `${tu.set ? tu.set.name : ''}${tu.set && tu.set.year ? ' \'' + String(tu.set.year).slice(2) : ''} · difficulty ${tu.difficulty} · ${tu.category}${tu.subcategory ? ' / ' + tu.subcategory : ''}`;
 
