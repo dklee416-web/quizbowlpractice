@@ -166,6 +166,8 @@
   }
   .play-meta .tagset{ display:flex; gap:10px; }
   .play-meta .badge{ background:var(--panel-2); border:1px solid var(--hair); padding:4px 10px; border-radius:20px; }
+  .play-meta .warn-badge{ background:rgba(193,39,45,0.15); border-color:var(--buzzer); color:var(--buzzer-bright); cursor:default; }
+  .play-meta .loading-badge{ color:var(--brass); border-color:var(--brass-dim); cursor:default; }
 
   .card{
     background:var(--panel); border:1px solid var(--hair); border-radius:6px; padding:40px;
@@ -259,6 +261,12 @@
   }
   .target .count .n{ font-size:28px; font-weight:700; color:var(--brass); }
   .target .count .lbl{ font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-top:1px; }
+  .freq-rank-badge{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:'Fraunces',serif; margin-top:6px;
+  }
+  .freq-rank-badge .n{ font-size:26px; font-weight:700; color:var(--brass); line-height:1.1; }
+  .freq-rank-badge .lbl{ font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-top:1px; }
   .answerline{
     font-family:'Fraunces',serif; font-size:22px; font-weight:600; text-align:center; max-width:60ch;
     color:var(--parchment);
@@ -431,6 +439,8 @@
         <span class="badge" id="catBadge">—</span>
         <span class="badge" id="diffBadge">—</span>
         <span class="badge" id="poolBadge">—</span>
+        <span class="badge loading-badge" id="loadingMoreBadge" style="display:none;">loading more…</span>
+        <span class="badge warn-badge" id="warnBadge" style="display:none;"></span>
       </div>
       <div id="progressBadge">Q 0</div>
     </div>
@@ -468,8 +478,8 @@
           <circle cx="65" cy="65" r="42" fill="none" stroke="var(--ring-2)" stroke-width="10"/>
           <circle cx="65" cy="65" r="24" fill="none" stroke="var(--ring-1)" stroke-width="10"/>
         </svg>
-        <div class="count"><div class="n" id="freqCount">—</div><div class="lbl">freq. rank</div></div>
       </div>
+      <div class="freq-rank-badge"><span class="n" id="freqCount">—</span><span class="lbl">freq. rank</span></div>
       <div class="answerline" id="answerText"></div>
       <div class="given-answer-line" id="givenAnswerLine"></div>
       <div class="meta-line" id="answerMeta"></div>
@@ -564,6 +574,7 @@ let state = {
   topN: 30,
   answerListLoading: false,
   pool: [],
+  pendingPool: [],
   freqMap: {},
   rankMap: {},
   idx: -1,
@@ -671,6 +682,7 @@ const selectedCount = document.getElementById('selectedCount');
 const answerListMax = document.getElementById('answerListMax');
 
 let answerListReqId = 0;
+let userHasSetTopN = false;
 
 async function loadAnswerList(){
   if(!state.category) return;
@@ -707,8 +719,12 @@ async function loadAnswerList(){
       return;
     }
 
-    // default: top 30 (or fewer if the list is shorter) checked
-    const defaultN = Math.min(30, freqList.length);
+    // Default to top 30 the very first time, but once the user has deliberately
+    // set a "select top" value, honor it on every subsequent reload of this list
+    // (subcategory change, difficulty change) instead of silently snapping back
+    // to 30 — that silent reset was the actual bug behind "I only get top 30."
+    const requestedN = userHasSetTopN ? state.topN : 30;
+    const defaultN = Math.min(requestedN, freqList.length);
     selectTopInput.value = defaultN;
     state.topN = defaultN;
     state.selectedAnswers = new Set(freqList.slice(0, defaultN).map(f => f.answer));
@@ -766,6 +782,7 @@ selectTopInput.oninput = () => {
   if(isNaN(n) || n < 0) n = 0;
   if(n > state.fullFreqList.length) n = state.fullFreqList.length;
   state.topN = n;
+  userHasSetTopN = true;
   state.selectedAnswers = new Set(state.fullFreqList.slice(0, n).map(f => f.answer));
   // reflect the new selection in the existing checkbox rows without a full rebuild
   [...answerChecklist.querySelectorAll('.answer-row')].forEach((row, i) => {
@@ -779,6 +796,7 @@ selectAllBtn.onclick = () => {
   state.selectedAnswers = new Set(state.fullFreqList.map(f => f.answer));
   selectTopInput.value = state.fullFreqList.length;
   state.topN = state.fullFreqList.length;
+  userHasSetTopN = true;
   [...answerChecklist.querySelectorAll('input[type=checkbox]')].forEach(cb => cb.checked = true);
   updateSelectedCount();
 };
@@ -787,6 +805,7 @@ selectNoneBtn.onclick = () => {
   state.selectedAnswers = new Set();
   selectTopInput.value = 0;
   state.topN = 0;
+  userHasSetTopN = true;
   [...answerChecklist.querySelectorAll('input[type=checkbox]')].forEach(cb => cb.checked = false);
   updateSelectedCount();
 };
@@ -1630,24 +1649,64 @@ function diffArray(){
   return arr.join(',');
 }
 
-async function fetchJSON(url){
-  const res = await fetch(url);
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+// Serializes request *starts* across all concurrent workers so we never burst
+// more than ~1 request every MIN_FETCH_INTERVAL_MS, regardless of how many
+// workers are running in parallel. This is proactive throttling, on top of
+// the reactive 429 backoff below, since preventing the burst in the first
+// place is cheaper than recovering from it.
+const MIN_FETCH_INTERVAL_MS = 140;
+let lastFetchStart = 0;
+let rateGateQueue = Promise.resolve();
+function rateGate(){
+  const gated = rateGateQueue.then(async () => {
+    const wait = Math.max(0, lastFetchStart + MIN_FETCH_INTERVAL_MS - Date.now());
+    if(wait > 0) await new Promise(r => setTimeout(r, wait));
+    lastFetchStart = Date.now();
+  });
+  rateGateQueue = gated;
+  return gated;
+}
+
+async function fetchJSON(url, retries){
+  if(retries === undefined) retries = 4;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    await rateGate();
+    let res;
+    try{
+      res = await fetch(url);
+    }catch(networkErr){
+      if(attempt === retries) throw networkErr;
+      await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt) + Math.random()*200));
+      continue;
+    }
+    if(res.status === 429){
+      if(attempt === retries) throw new Error('HTTP 429 (rate limited, gave up after retries)');
+      // qbreader is throttling us — back off and try again rather than
+      // silently treating this answer as having zero tossups.
+      const retryAfter = res.headers.get('Retry-After');
+      const waitMs = retryAfter ? parseFloat(retryAfter) * 1000 : (500 * Math.pow(2, attempt) + Math.random()*300);
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
 }
 
 // limited-concurrency pool runner
 async function runPool(items, worker, concurrency){
   const results = [];
+  const failedItems = [];
   let i = 0;
   async function next(){
     while(i < items.length){
       const cur = i++;
       try{ results[cur] = await worker(items[cur]); }
-      catch(e){ results[cur] = null; }
+      catch(e){ results[cur] = null; failedItems.push({ item: items[cur], error: e }); }
     }
   }
   await Promise.all(Array.from({length: Math.min(concurrency, items.length)}, next));
+  results.failedItems = failedItems;
   return results;
 }
 
@@ -1678,6 +1737,163 @@ function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Fetches tossups for a batch of answers, applying the same strict
+// filtering (category/subcategory, primary-answer match, power-only) used
+// everywhere else. Dedup sets are passed in so callers can share dedup state
+// across multiple batches (initial + background).
+async function fetchTossupBatch(answerBatch, seenIds, seenText){
+  const results = await runPool(answerBatch, async (f) => {
+    const baseParams = {
+      q: f.answer,
+      questionType: 'tossup',
+      searchType: 'answer',
+      randomize: true,
+      maxReturnLength: 15,
+      category: state.category,
+      subcategory: state.subcategory || undefined,
+      alternateSubcategories: state.altSubcategory || undefined,
+      difficulties: diffArray()
+    };
+    const data = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: true})}`);
+    let arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
+    // The frequency-list's canonical answer string doesn't always literally
+    // substring-match every stored answerline variant (word order, "the",
+    // diacritics, etc.), which silently starves long-tail answers of hits
+    // even though real matching tossups exist. If the strict phrase search
+    // came up empty, retry loosely — the strict primary-answer filter below
+    // still guards against false positives, so this is safe.
+    if(arr.length === 0){
+      const looseData = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: false})}`);
+      arr = (looseData.tossups && looseData.tossups.questionArray) ? looseData.tossups.questionArray : [];
+    }
+    return arr.map(t => ({...t, __freqAnswer: f.answer}));
+  }, 3);
+
+  let batchPool = results.flat().filter(Boolean);
+
+  // Guard against loose phrase matches: qbreader's answer search matches the phrase
+  // anywhere in the answerline (including accept clauses), which can occasionally pull in
+  // a tossup from the wrong category/subcategory, or — more subtly — a tossup whose real,
+  // primary answer is something else entirely but which just happens to *accept* your
+  // target phrase as an alternate. Strictly re-check every result against the filters we
+  // actually asked for, and require the target answer to appear in the primary answer
+  // segment (before the first bracket/paren, where accept/alternate text usually lives)
+  // rather than anywhere in the full answerline.
+  batchPool = batchPool.filter(t => {
+    if(t.category !== state.category) return false;
+    if(state.subcategory && t.subcategory !== state.subcategory) return false;
+    if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
+
+    const target = (t.__freqAnswer || '').trim().toLowerCase();
+    if(!target) return true;
+    const rawAnswer = (t.answer_sanitized || t.answer || '');
+    const primary = rawAnswer.split(/[\[\(]/)[0].trim().toLowerCase();
+    return primary.length > 0 && primary.includes(target);
+  });
+
+  if(state.powerOnly){
+    batchPool = batchPool.filter(t => /\(\*\)/.test(t.question_sanitized));
+  }
+
+  // Dedupe by _id, AND by normalized question text — quizbowl tossups get
+  // reused/recycled across different packets and sets (especially common,
+  // canon-heavy answers), so the same question can exist twice in the
+  // database under two different _ids. An _id-only check misses that.
+  // seenIds/seenText are shared across batches so a later batch can't
+  // reintroduce something an earlier batch already pulled in.
+  batchPool = batchPool.filter(t => {
+    if(seenIds.has(t._id)) return false;
+    seenIds.add(t._id);
+    const norm = (t.question_sanitized || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const sig = norm.slice(0, 220);
+    if(sig){
+      if(seenText.has(sig)) return false;
+      seenText.add(sig);
+    }
+    return true;
+  });
+
+  return { batchPool, failedItems: results.failedItems || [] };
+}
+
+function shuffleArray(arr){
+  for(let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i+1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function logPoolDiagnostics(freqList, pool, label){
+  try{
+    const perAnswerCount = {};
+    pool.forEach(t => { perAnswerCount[t.__freqAnswer] = (perAnswerCount[t.__freqAnswer] || 0) + 1; });
+    const buckets = [[1,30],[31,70],[71,130],[131,200]];
+    const summary = buckets.map(([lo,hi]) => {
+      const answersInBucket = freqList.filter(f => state.rankMap[f.answer] >= lo && state.rankMap[f.answer] <= hi);
+      const total = answersInBucket.reduce((s,f) => s + (perAnswerCount[f.answer] || 0), 0);
+      return {
+        'rank range': `${lo}-${hi}`,
+        'answers selected': answersInBucket.length,
+        'tossups in pool': total,
+        'avg per answer': answersInBucket.length ? (total / answersInBucket.length).toFixed(2) : '—'
+      };
+    });
+    console.log(`Canonball pool diagnostics (${label}):`);
+    console.table(summary);
+  }catch(e){ /* diagnostics are best-effort, never block the drill */ }
+}
+
+const INITIAL_BATCH_SIZE = 25;
+const warnBadge = document.getElementById('warnBadge');
+const loadingMoreBadge = document.getElementById('loadingMoreBadge');
+let cumulativeFailedAnswers = [];
+let currentDrillSessionId = 0;
+
+function updateWarnBadge(){
+  if(cumulativeFailedAnswers.length > 0){
+    const names = cumulativeFailedAnswers;
+    warnBadge.style.display = 'inline-block';
+    warnBadge.textContent = `⚠ ${names.length} answer${names.length===1?'':'s'} skipped (rate-limited)`;
+    warnBadge.title = 'These answers could not be loaded, likely due to qbreader rate-limiting: ' + names.join(', ');
+  } else {
+    warnBadge.style.display = 'none';
+  }
+}
+
+function updatePoolBadgeText(freqListLength){
+  document.getElementById('poolBadge').textContent = `${state.pool.length + state.pendingPool.length} tossups · top ${freqListLength} answers` + (state.powerOnly ? ' · power only' : '');
+}
+
+// Continues fetching the rest of the selected answers in the background
+// after the drill has already started on the initial batch. Newly-found
+// tossups are staged in state.pendingPool and only merged into the live
+// pool by nextQuestion(), so a merge/reshuffle never interrupts a question
+// that's already in progress — it only ever happens in between questions.
+async function continueBackgroundFetch(remainingAnswers, seenIds, seenText, freqListLength, sessionId){
+  if(remainingAnswers.length === 0) return;
+  loadingMoreBadge.style.display = 'inline-block';
+  loadingMoreBadge.textContent = `loading ${remainingAnswers.length} more…`;
+
+  const CHUNK_SIZE = 20;
+  for(let i = 0; i < remainingAnswers.length; i += CHUNK_SIZE){
+    const chunk = remainingAnswers.slice(i, i + CHUNK_SIZE);
+    const { batchPool, failedItems } = await fetchTossupBatch(chunk, seenIds, seenText);
+    if(sessionId !== currentDrillSessionId) return; // a newer drill session has started — abandon this one
+    state.pendingPool = state.pendingPool.concat(batchPool);
+    if(failedItems.length > 0){
+      cumulativeFailedAnswers = cumulativeFailedAnswers.concat(failedItems.map(fi => fi.item.answer));
+      updateWarnBadge();
+    }
+    const remaining = remainingAnswers.length - (i + chunk.length);
+    if(remaining > 0){
+      loadingMoreBadge.textContent = `loading ${remaining} more…`;
+    }
+    updatePoolBadgeText(freqListLength);
+  }
+  if(sessionId === currentDrillSessionId) loadingMoreBadge.style.display = 'none';
+}
+
 // ---------- build drill pool ----------
 startBtn.onclick = async () => {
   if(!state.category) return;
@@ -1704,111 +1920,38 @@ startBtn.onclick = async () => {
     state.fullFreqList.forEach((f, i) => { state.rankMap[f.answer] = i + 1; });
     freqList.forEach(f => state.freqMap[f.answer] = f.frequency);
 
-    statusLine.textContent = `Found ${freqList.length} answers. Pulling matching tossups…`;
+    // Fetch order is randomized across the WHOLE selected range (not rank
+    // order) so the initial fast batch is a representative cross-section
+    // instead of just the most-frequent answers.
+    const fetchOrder = shuffleArray(freqList.slice());
+    const initialBatch = fetchOrder.slice(0, Math.min(INITIAL_BATCH_SIZE, fetchOrder.length));
+    const remainingBatch = fetchOrder.slice(initialBatch.length);
 
-    const results = await runPool(freqList, async (f) => {
-      const baseParams = {
-        q: f.answer,
-        questionType: 'tossup',
-        searchType: 'answer',
-        randomize: true,
-        maxReturnLength: 15,
-        category: state.category,
-        subcategory: state.subcategory || undefined,
-        alternateSubcategories: state.altSubcategory || undefined,
-        difficulties: diffArray()
-      };
-      const data = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: true})}`);
-      let arr = (data.tossups && data.tossups.questionArray) ? data.tossups.questionArray : [];
-      // The frequency-list's canonical answer string doesn't always literally
-      // substring-match every stored answerline variant (word order, "the",
-      // diacritics, etc.), which silently starves long-tail answers of hits
-      // even though real matching tossups exist. If the strict phrase search
-      // came up empty, retry loosely — the strict primary-answer filter below
-      // still guards against false positives, so this is safe.
-      if(arr.length === 0){
-        const looseData = await fetchJSON(`${API}/query?${qs({...baseParams, exactPhrase: false})}`);
-        arr = (looseData.tossups && looseData.tossups.questionArray) ? looseData.tossups.questionArray : [];
-      }
-      return arr.map(t => ({...t, __freqAnswer: f.answer}));
-    }, 8);
+    statusLine.textContent = `Found ${freqList.length} answers. Pulling an initial batch of tossups…`;
 
-    let pool = results.flat().filter(Boolean);
-
-    // Guard against loose phrase matches: qbreader's answer search matches the phrase
-    // anywhere in the answerline (including accept clauses), which can occasionally pull in
-    // a tossup from the wrong category/subcategory, or — more subtly — a tossup whose real,
-    // primary answer is something else entirely but which just happens to *accept* your
-    // target phrase as an alternate. Strictly re-check every result against the filters we
-    // actually asked for, and require the target answer to appear in the primary answer
-    // segment (before the first bracket/paren, where accept/alternate text usually lives)
-    // rather than anywhere in the full answerline.
-    pool = pool.filter(t => {
-      if(t.category !== state.category) return false;
-      if(state.subcategory && t.subcategory !== state.subcategory) return false;
-      if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
-
-      const target = (t.__freqAnswer || '').trim().toLowerCase();
-      if(!target) return true;
-      const rawAnswer = (t.answer_sanitized || t.answer || '');
-      const primary = rawAnswer.split(/[\[\(]/)[0].trim().toLowerCase();
-      return primary.length > 0 && primary.includes(target);
-    });
-
-    if(state.powerOnly){
-      pool = pool.filter(t => /\(\*\)/.test(t.question_sanitized));
-    }
-
-    // Dedupe by _id, AND by normalized question text — quizbowl tossups get
-    // reused/recycled across different packets and sets (especially common,
-    // canon-heavy answers), so the same question can exist twice in the
-    // database under two different _ids. An _id-only check misses that.
+    cumulativeFailedAnswers = [];
+    currentDrillSessionId++;
+    const thisSessionId = currentDrillSessionId;
     const seenIds = new Set();
     const seenText = new Set();
-    pool = pool.filter(t => {
-      if(seenIds.has(t._id)) return false;
-      seenIds.add(t._id);
-      const norm = (t.question_sanitized || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const sig = norm.slice(0, 220);
-      if(sig){
-        if(seenText.has(sig)) return false;
-        seenText.add(sig);
-      }
-      return true;
-    });
-    // shuffle
-    for(let i = pool.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i+1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+    const { batchPool: initialPool, failedItems } = await fetchTossupBatch(initialBatch, seenIds, seenText);
+
+    if(failedItems.length > 0){
+      cumulativeFailedAnswers = cumulativeFailedAnswers.concat(failedItems.map(fi => fi.item.answer));
     }
+    updateWarnBadge();
+
+    let pool = shuffleArray(initialPool);
 
     if(pool.length === 0){
       const extra = state.powerOnly ? ' Try turning off "power mark only" — this combination may have too few powered tossups.' : ' Try widening difficulty or picking a broader category.';
-      throw new Error('Frequency list came back, but no matching tossups were found after filtering.' + extra);
+      throw new Error('Frequency list came back, but no matching tossups were found in the initial batch.' + extra);
     }
 
-    // Diagnostics: how many tossups actually made it into the pool per answer,
-    // bucketed by frequency rank. Open the browser console to check this if the
-    // drill still feels skewed toward the top of the list.
-    try{
-      const perAnswerCount = {};
-      pool.forEach(t => { perAnswerCount[t.__freqAnswer] = (perAnswerCount[t.__freqAnswer] || 0) + 1; });
-      const buckets = [[1,30],[31,70],[71,130],[131,200]];
-      const summary = buckets.map(([lo,hi]) => {
-        const answersInBucket = freqList.filter(f => state.rankMap[f.answer] >= lo && state.rankMap[f.answer] <= hi);
-        const total = answersInBucket.reduce((s,f) => s + (perAnswerCount[f.answer] || 0), 0);
-        return {
-          'rank range': `${lo}-${hi}`,
-          'answers selected': answersInBucket.length,
-          'tossups in pool': total,
-          'avg per answer': answersInBucket.length ? (total / answersInBucket.length).toFixed(2) : '—'
-        };
-      });
-      console.log('Canonball pool diagnostics (per rank bucket):');
-      console.table(summary);
-    }catch(e){ /* diagnostics are best-effort, never block the drill */ }
+    logPoolDiagnostics(freqList, pool, 'initial batch');
 
     state.pool = pool;
+    state.pendingPool = [];
     state.idx = -1;
     state.seen = 0; state.got = 0; state.missed = 0; state.power = 0;
     updateStats();
@@ -1816,13 +1959,19 @@ startBtn.onclick = async () => {
     const subLabel = state.subcategory || state.altSubcategory;
     document.getElementById('catBadge').textContent = subLabel ? `${state.category} · ${subLabel}` : state.category;
     document.getElementById('diffBadge').textContent = state.diffMin === state.diffMax ? `Diff ${state.diffMin}` : `Diff ${state.diffMin}–${state.diffMax}`;
-    document.getElementById('poolBadge').textContent = `${pool.length} tossups · top ${freqList.length} answers` + (state.powerOnly ? ' · power only' : '');
+    updatePoolBadgeText(freqList.length);
 
     document.getElementById('setupScreen').style.display = 'none';
     document.getElementById('playScreen').style.display = 'flex';
     document.getElementById('exitBtn').style.display = 'inline-block';
 
     nextQuestion();
+
+    // Keep pulling the rest of the selected answers in the background —
+    // results land in state.pendingPool and get folded into the live pool
+    // between questions (see nextQuestion), never interrupting a question
+    // that's already in progress.
+    continueBackgroundFetch(remainingBatch, seenIds, seenText, freqList.length, thisSessionId);
   }catch(err){
     statusLine.className = 'status-line err';
     statusLine.textContent = err.message.includes('Failed to fetch')
@@ -1894,18 +2043,36 @@ function parsePowerWords(text){
 function nextQuestion(){
   clearAllTimers();
   const prevTossup = (state.idx >= 0 && state.idx < state.pool.length) ? state.pool[state.idx] : null;
-  state.idx++;
-  if(state.idx >= state.pool.length){
-    // Exhausted the pool — reshuffle instead of silently replaying the exact
-    // same order again, since that's what actually caused perceived "repeats."
+
+  if(state.pendingPool && state.pendingPool.length > 0){
+    // New tossups arrived from the background fetch since the last question —
+    // fold them into the live pool now, between questions, so a merge never
+    // interrupts one already in progress. The shuffle itself is instant, so
+    // there's nothing to actually wait for.
+    state.pool = state.pool.concat(state.pendingPool);
+    state.pendingPool = [];
     for(let i = state.pool.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i+1));
       [state.pool[i], state.pool[j]] = [state.pool[j], state.pool[i]];
     }
     state.idx = 0;
-    // avoid the seam itself immediately repeating the last question shown
     if(prevTossup && state.pool.length > 1 && state.pool[0]._id === prevTossup._id){
       [state.pool[0], state.pool[1]] = [state.pool[1], state.pool[0]];
+    }
+  } else {
+    state.idx++;
+    if(state.idx >= state.pool.length){
+      // Exhausted the pool — reshuffle instead of silently replaying the exact
+      // same order again, since that's what actually caused perceived "repeats."
+      for(let i = state.pool.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i+1));
+        [state.pool[i], state.pool[j]] = [state.pool[j], state.pool[i]];
+      }
+      state.idx = 0;
+      // avoid the seam itself immediately repeating the last question shown
+      if(prevTossup && state.pool.length > 1 && state.pool[0]._id === prevTossup._id){
+        [state.pool[0], state.pool[1]] = [state.pool[1], state.pool[0]];
+      }
     }
   }
   const tu = state.pool[state.idx];
@@ -2184,6 +2351,8 @@ function updateStats(){
 
 document.getElementById('exitBtn').onclick = () => {
   clearAllTimers();
+  currentDrillSessionId++; // invalidate any in-flight background fetch from this drill
+  document.getElementById('loadingMoreBadge').style.display = 'none';
   document.getElementById('playScreen').style.display = 'none';
   document.getElementById('setupScreen').style.display = 'block';
   document.getElementById('exitBtn').style.display = 'none';
