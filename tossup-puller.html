@@ -253,8 +253,6 @@ async function runPool(items, worker, concurrency, delayMs){
   return results;
 }
 
-function escapeNone(s){ return s; }
-
 runBtn.onclick = async () => {
   if(!state.category) return;
   runBtn.disabled = true;
@@ -303,7 +301,7 @@ runBtn.onclick = async () => {
         searchType: 'answer',
         exactPhrase: exact,
         randomize: false,
-        maxReturnLength: 10,
+        maxReturnLength: 15,
         categories: state.category,
         subcategories: state.subcategory || undefined,
         alternateSubcategories: state.altSubcategory || undefined,
@@ -321,12 +319,22 @@ runBtn.onclick = async () => {
       }
 
       // Strictly re-verify category/subcategory client-side, same guard Canonball uses,
-      // to filter out qbreader's occasional loose answer-phrase matches.
+      // to filter out qbreader's occasional loose answer-phrase matches. Also require the
+      // target answer to appear in the primary answer segment (before the first bracket/
+      // paren, where accept/prompt/alternate text usually lives) rather than anywhere in
+      // the full answerline — otherwise a tossup that merely *prompts* on or *accepts*
+      // this answer (but whose real answer is something else) gets filed under this
+      // answer's bucket. E.g. a "drag force [... prompt on friction ...]" tossup would
+      // otherwise land in the "friction" bucket.
+      const target = (f.answer || '').trim().toLowerCase();
       const filtered = arr.filter(t => {
         if(t.category !== state.category) return false;
         if(state.subcategory && t.subcategory !== state.subcategory) return false;
         if(state.altSubcategory && t.alternate_subcategory !== state.altSubcategory) return false;
-        return true;
+        if(!target) return true;
+        const rawAnswer = (t.answer_sanitized || t.answer || '');
+        const primary = rawAnswer.split(/[\[\(]/)[0].trim().toLowerCase();
+        return primary.length > 0 && primary.includes(target);
       });
       return { answer: f.answer, frequency: f.frequency, tossups: filtered };
     }, 2, 350);
