@@ -1444,6 +1444,206 @@ const TRIGGER_NOTES = {
           niche: ["thalidomide's toxic effects stem from its S-enantiomer", "absent in molecules with a plane of symmetry (meso compounds)", "detected via optical rotation of plane-polarized light (dextrorotatory/levorotatory)"]
         }
       }
+    },
+    "Physics": {
+      "1-3": {
+        "friction": {
+          common: ["force resisting relative sliding motion between two surfaces in contact", "static and kinetic types, kinetic usually weaker than static", "friction force equals mu (the coefficient of friction) times the normal force", "reduced by lubricants"],
+          niche: ["independent of contact area per Amontons' laws", "caused by microscopic surface bumps called asperities", "studied in the field of tribology; measured with a tribometer", "Stribeck curve relates the friction coefficient to lubrication regime"]
+        },
+        "gravity": {
+          common: ["attractive force between objects with mass", "Newton's law: proportional to the product of the masses, inverse square of distance", "accelerates objects near Earth's surface at about 9.8 m/s^2", "reinterpreted by Einstein as curvature of spacetime in general relativity"],
+          niche: ["gravitational constant G first measured via Cavendish's torsion balance experiment", "gravitational waves, predicted by general relativity, were directly detected by LIGO in 2015", "equivalence principle equates gravitational and inertial mass", "escape velocity depends on this force's strength and an object's mass"]
+        },
+        "acceleration": {
+          common: ["rate of change of velocity with time, measured in m/s^2", "caused by a net force per Newton's second law (F=ma)", "centripetal form points toward the center in circular motion", "free fall near Earth's surface has a constant value of about 9.8 m/s^2"],
+          niche: ["the derivative of velocity and second derivative of position", "jerk is the rate of change of this quantity", "proper acceleration (what an accelerometer measures) differs from coordinate acceleration in relativity", "centripetal form equals v-squared over r"]
+        },
+        "Doppler effect": {
+          common: ["apparent shift in a wave's frequency or pitch due to relative motion between source and observer", "makes an ambulance siren sound higher approaching and lower receding", "used in radar guns and weather radar"],
+          niche: ["redshift/blueshift of starlight reveals the universe's expansion via Hubble's law", "named for Christian Doppler", "relativistic version includes a transverse component absent from the classical formula", "used in echocardiograms to measure blood flow"]
+        },
+        "electrons": {
+          common: ["negatively charged subatomic particle found in atomic orbitals", "discovered by J.J. Thomson using cathode ray tubes", "carry electric current through conductors", "much less massive than protons or neutrons"],
+          niche: ["exhibit wave-particle duality, confirmed by the Davisson-Germer experiment", "have spin-1/2 and obey the Pauli exclusion principle and Fermi-Dirac statistics", "charge magnitude measured by Millikan's oil drop experiment", "virtual electron-positron pairs cause vacuum polarization"]
+        },
+        "entropy": {
+          common: ["measure of disorder or randomness in a system, symbolized S", "always increases in an isolated system per the second law of thermodynamics", "measured in joules per kelvin"],
+          niche: ["statistical definition S = k ln W, given by Boltzmann (engraved on his tombstone)", "appears in the Gibbs free energy equation G = H − TS", "black holes have entropy proportional to horizon area (Bekenstein-Hawking entropy)", "heat death of the universe describes the state of maximum entropy"]
+        },
+        "magnetic field": {
+          common: ["region around a magnet or current-carrying wire where magnetic forces act", "measured in teslas", "produced by moving charges/current per Ampere's law", "lets a compass work and shields Earth from the solar wind"],
+          niche: ["right-hand rule gives its direction around a current-carrying wire", "Gauss's law for magnetism states there are no magnetic monopoles", "Lorentz force law describes the force on a moving charge within it", "Larmor precession describes how magnetic moments behave inside one"]
+        },
+        "speed of light": {
+          common: ["fastest possible speed in a vacuum, about 3x10^8 m/s, symbolized c", "nothing with mass can reach it, per special relativity", "appears in the equation E=mc^2"],
+          niche: ["first measured astronomically by Ole Romer, using Jupiter's moon Io", "Michelson-Morley experiment showed it's constant regardless of observer motion, disproving the luminiferous ether", "slows in denser media, described by a material's index of refraction", "now used to define the meter"]
+        },
+        "mass": {
+          common: ["measure of an object's resistance to acceleration (inertia), measured in kilograms", "distinct from weight, which depends on local gravity", "appears in Newton's second law, F=ma"],
+          niche: ["mass-energy equivalence expressed as E=mc^2", "nuclear \"mass defect\" between a nucleus and its separate nucleons explains binding energy", "Higgs mechanism is theorized to give elementary particles this property", "no-hair theorem: black holes are characterized only by mass, charge, and angular momentum"]
+        },
+        "potential energy": {
+          common: ["stored energy due to an object's position or configuration", "gravitational form equals mgh", "elastic form in a spring equals one-half k x squared", "converts to kinetic energy as an object falls"],
+          niche: ["equals the negative gradient of a conservative force", "the \"V\" term subtracted from kinetic energy in the Lagrangian", "electrical form follows from Coulomb's law", "virial theorem relates its time average to that of kinetic energy"]
+        },
+        "kinetic energy": {
+          common: ["energy of motion, equals one-half m v squared", "conserved, along with momentum, in elastic collisions", "converts to and from potential energy"],
+          niche: ["equals momentum squared over twice the mass", "work-energy theorem: its change equals the net work done", "equipartition theorem gives an average of (3/2)kT per particle in an ideal gas", "relativistic form equals (gamma minus one) times mc^2"]
+        },
+        "linear momentum": {
+          common: ["product of mass and velocity (p=mv), a vector quantity", "conserved in closed systems (conservation of momentum)", "impulse equals the change in this quantity"],
+          niche: ["de Broglie related it to wavelength via lambda = h/p", "relativistic form includes a gamma factor", "Noether's theorem ties its conservation to translational symmetry", "used to analyze Compton scattering"]
+        },
+        "Albert Einstein": {
+          common: ["developed special and general relativity", "famous for the equation E=mc^2", "won the 1921 Nobel Prize for explaining the photoelectric effect, not for relativity"],
+          niche: ["1905 \"miracle year\" (annus mirabilis) papers covered Brownian motion, the photoelectric effect, and special relativity", "EPR paradox, with Podolsky and Rosen, challenged the completeness of quantum mechanics", "objected to quantum indeterminacy with \"God does not play dice\"", "predicted gravitational lensing, confirmed during the 1919 solar eclipse"]
+        },
+        "photons": {
+          common: ["massless particles/quanta of light and electromagnetic radiation", "travel at the speed of light and show wave-particle duality", "energy equals Planck's constant times frequency (E=hf)"],
+          niche: ["explaining the photoelectric effect (Einstein, 1905) established their particle nature", "force-carrying gauge boson of the electromagnetic interaction", "Compton scattering demonstrated their particle-like momentum", "virtual photons mediate electromagnetic interactions between charges"]
+        },
+        "temperature": {
+          common: ["measure of the average kinetic energy of a substance's particles", "measured in Celsius, Fahrenheit, or Kelvin", "zeroth law of thermodynamics defines thermal equilibrium", "absolute zero is 0 K"],
+          niche: ["appears in the ideal gas law, PV=nRT", "Boltzmann's constant relates it to particle energy", "negative values are possible in certain quantum spin systems", "Wien's displacement law and the Stefan-Boltzmann law describe blackbody radiation"]
+        },
+        "torque": {
+          common: ["rotational analog of force, equals force times lever arm distance", "causes angular acceleration", "measured in newton-meters", "what a wrench applies to turn a bolt"],
+          niche: ["equals the cross product of position and force vectors", "equals the rate of change of angular momentum", "zero net torque is required for rotational equilibrium", "a couple produces pure torque with no net force"]
+        },
+        "black holes": {
+          common: ["regions where gravity is so strong that not even light can escape", "boundary called the event horizon", "form from the collapse of massive stars", "first imaged directly by the Event Horizon Telescope"],
+          niche: ["nonrotating case described by the Schwarzschild solution to Einstein's field equations", "no-hair theorem: characterized only by mass, charge, and angular momentum", "Hawking radiation causes them to slowly evaporate", "contain a singularity where known physics breaks down"]
+        },
+        "diffraction": {
+          common: ["bending and spreading of waves around obstacles or through slits", "demonstrated by Young's double-slit experiment", "produces interference patterns", "occurs with light, sound, and water waves"],
+          niche: ["a diffraction grating uses many slits to separate wavelengths", "limits the resolution of telescopes and microscopes (Rayleigh criterion)", "X-ray diffraction, governed by Bragg's law, reveals crystal structure", "Fraunhofer (far-field) and Fresnel (near-field) are its two regimes"]
+        },
+        "ferromagnetism": {
+          common: ["strongest form of magnetism, found in iron, nickel, and cobalt", "responsible for permanent magnets", "disappears above the Curie temperature", "caused by aligned electron spins"],
+          niche: ["described by the Ising model, solved analytically in two dimensions by Lars Onsager", "domains called Weiss domains align below the Curie point", "exhibits hysteresis loops when the applied field changes", "contrasted with weaker paramagnetism and with antiferromagnetism (Neel temperature)"]
+        },
+        "index of refraction": {
+          common: ["measures how much a material bends light", "ratio of the speed of light in a vacuum to its speed in the medium", "used in Snell's law", "about 1.33 for water"],
+          niche: ["the Cauchy and Sellmeier equations describe its wavelength dependence", "Brewster's angle involves the arctangent of a ratio of two of its values", "the Kerr effect changes it via an applied electric field", "birefringent materials like calcite have two different values depending on polarization"]
+        },
+        "lasers": {
+          common: ["acronym for Light Amplification by Stimulated Emission of Radiation", "produce coherent, monochromatic beams", "used in barcode scanners, surgery, and fiber-optic communication"],
+          niche: ["rely on population inversion and stimulated emission, theorized via Einstein's A and B coefficients", "Theodore Maiman built the first one, a ruby laser, in 1960", "use a gain medium placed between mirrors forming an optical cavity", "masers are their microwave-frequency predecessor"]
+        },
+        "pressure": {
+          common: ["force per unit area, measured in pascals", "atmospheric pressure at sea level is about 101,325 Pa", "increases with depth in a fluid (Pascal's principle)"],
+          niche: ["appears in both the ideal gas law and Bernoulli's equation", "Dalton's law sums the partial pressures of gases in a mixture", "critical pressure and temperature define the supercritical fluid region", "Boyle's law relates it inversely to volume at constant temperature"]
+        },
+        "quarks": {
+          common: ["fundamental particles that make up protons and neutrons", "six flavors: up, down, charm, strange, top, and bottom", "carry fractional electric charge", "held together by the strong force"],
+          niche: ["never observed in isolation, due to confinement", "interactions mediated by gluons, described by quantum chromodynamics", "carry a property called color charge (red, green, or blue)", "top quark is the most massive known elementary particle"]
+        },
+        "reflection": {
+          common: ["bouncing of a wave off a surface", "angle of incidence equals angle of reflection", "specular (mirror-like) versus diffuse types", "the basis for how mirrors work"],
+          niche: ["total internal reflection occurs above the critical angle, enabling fiber optics", "a phase shift of pi occurs when reflecting off a denser medium", "retroreflectors send light back toward its source", "Fresnel equations describe reflectance at an interface"]
+        },
+        "nuclear fusion": {
+          common: ["combining light atomic nuclei into a heavier nucleus, releasing energy", "powers the Sun and other stars (hydrogen into helium)", "the opposite of fission", "a potential clean energy source"],
+          niche: ["requires overcoming Coulomb repulsion via extreme temperature/pressure or quantum tunneling", "stars use the proton-proton chain or, in heavier stars, the CNO cycle", "tokamaks use magnetic confinement to sustain it", "the National Ignition Facility achieved net energy gain from it in 2022"]
+        },
+        "time": {
+          common: ["fundamental quantity measured in seconds", "SI second is defined by cesium-133 hyperfine transitions", "treated as a fourth dimension in spacetime"],
+          niche: ["dilates at high speeds or in strong gravity, per relativity", "its \"arrow\" is tied to the increase of entropy in the second law of thermodynamics", "Noether's theorem: its symmetry implies conservation of energy", "Stephen Hawking distinguished \"imaginary\" from \"real\" forms of it"]
+        },
+        "angular momentum": {
+          common: ["rotational analog of linear momentum, equals moment of inertia times angular velocity (L=I*omega)", "conserved in isolated systems (explains a spinning skater speeding up while pulling arms in)", "explains Kepler's second law"],
+          niche: ["spin is an intrinsic, quantum-mechanical form of it", "its conservation follows from rotational symmetry via Noether's theorem", "described by the Pauli-Lubanski pseudovector in relativistic quantum mechanics", "black holes are partly characterized by it, per the no-hair theorem"]
+        },
+        "Hooke's Law": {
+          common: ["states that a spring's restoring force is proportional to displacement, F=-kx", "k is called the spring constant", "describes elastic behavior and simple harmonic motion", "named for Robert Hooke"],
+          niche: ["breaks down beyond a material's elastic limit", "integrating it gives the spring potential energy formula, one-half k x squared", "underlies the differential equation for a simple harmonic oscillator", "used in stress-strain analysis alongside Young's modulus"]
+        },
+        "velocity": {
+          common: ["rate of change of position with time; a vector, unlike speed", "measured in meters per second", "the derivative of position; its integral gives displacement"],
+          niche: ["terminal form is reached when drag force balances gravity", "combines via Galilean addition classically or relativistic velocity addition near light speed", "escape velocity is the minimum needed to leave a gravitational field", "angular velocity is its rotational analog"]
+        },
+        "diffusion": {
+          common: ["net movement of particles from high to low concentration", "explains how a scent spreads through a room", "driven by random thermal (Brownian) motion", "described by Fick's laws"],
+          niche: ["the Einstein-Smoluchowski relation connects the diffusion coefficient to mobility and temperature", "the subject of Einstein's 1905 paper explaining Brownian motion", "the diffusion equation is mathematically related to the heat equation", "osmosis is the diffusion of solvent molecules across a membrane"]
+        },
+        "electric field": {
+          common: ["region around a charge where other charges feel a force", "measured in volts per meter or newtons per coulomb", "points away from positive charges and toward negative ones", "visualized with field lines"],
+          niche: ["equals the negative gradient of electric potential", "Gauss's law relates its flux through a surface to the enclosed charge", "produced by a changing magnetic field, per Faraday's law of induction", "superposition principle combines the fields from multiple charges"]
+        },
+        "neutrinos": {
+          common: ["nearly massless, chargeless subatomic particles that rarely interact with matter", "produced in nuclear reactions like beta decay and inside the Sun", "come in three \"flavor\" types"],
+          niche: ["originally proposed by Pauli to conserve energy in beta decay", "first detected by Cowan and Reines", "flavor oscillation between types proved they have nonzero mass", "studied by huge detectors like Super-Kamiokande and IceCube"]
+        },
+        "plasma": {
+          common: ["fourth state of matter, an ionized gas of free electrons and ions", "found in stars, lightning, and neon signs", "conducts electricity", "makes up most of the visible universe"],
+          niche: ["confined magnetically in fusion reactors called tokamaks", "quasi-neutral overall despite containing charged particles", "Debye length describes its characteristic charge-shielding distance", "Irving Langmuir coined the term for this state of matter"]
+        },
+        "viscosity": {
+          common: ["measure of a fluid's resistance to flow", "honey is more viscous than water", "measured in units like poise or pascal-seconds", "generally decreases with temperature in liquids"],
+          niche: ["Newtonian versus non-Newtonian fluids (e.g., shear-thickening cornstarch mixtures)", "Stokes' law relates the drag on a sphere to it", "the Reynolds number compares inertial to viscous forces", "superfluids like helium-4 below the lambda point have essentially none"]
+        },
+        "voltage": {
+          common: ["electric potential difference between two points, measured in volts", "drives current through a circuit", "often described as \"electrical pressure\"", "supplied by a battery"],
+          niche: ["Ohm's law relates it to current and resistance (V=IR)", "Kirchhoff's voltage law: the sum around any closed loop is zero", "the Hall effect produces a voltage perpendicular to current in a magnetic field", "RMS voltage describes the effective value in AC circuits"]
+        },
+        "electric charge": {
+          common: ["fundamental property causing objects to experience electromagnetic force", "comes in positive and negative types, quantized in units of e", "conserved in all interactions", "like charges repel, opposite charges attract"],
+          niche: ["magnitude measured by Millikan's oil drop experiment", "quarks carry fractional amounts of it (one-third or two-thirds of e)", "its conservation follows from a U(1) gauge symmetry", "the triboelectric effect generates static buildup of it via rubbing"]
+        },
+        "moment of inertia": {
+          common: ["rotational analog of mass; resistance to angular acceleration", "depends on how mass is distributed relative to the axis of rotation", "for a point mass, equals mass times radius squared"],
+          niche: ["the parallel axis theorem shifts its value to a different rotation axis", "appears in rotational kinetic energy (one-half I omega squared) and angular momentum (L=I*omega)", "differs by shape — solid sphere, hoop, and disk each have different formulas", "figure skaters change it by extending or retracting their arms"]
+        },
+        "protons": {
+          common: ["positively charged subatomic particle found in atomic nuclei", "number of them defines an element's atomic number", "made of two up quarks and one down quark", "roughly 1836 times heavier than an electron"],
+          niche: ["held together in a nucleus by the strong nuclear force, mediated by gluons/pions", "Rutherford's gold foil experiment led to discovering the atomic nucleus", "some grand unified theories predict this particle can decay, though it's never been observed", "studied via high-energy collisions at the Large Hadron Collider"]
+        },
+        "capacitance": {
+          common: ["ability of a system to store electric charge, measured in farads", "equals charge divided by voltage (C=Q/V)", "found in parallel-plate capacitors used throughout circuits"],
+          niche: ["energy stored equals one-half C V squared", "combines with resistance to give the RC circuit time constant, tau=RC", "increases with plate area, decreases with plate separation, and depends on the dielectric constant", "supercapacitors achieve far higher values of it than standard capacitors"]
+        },
+        "Isaac Newton": {
+          common: ["formulated the three laws of motion and the law of universal gravitation", "developed calculus independently of Leibniz", "wrote the Principia Mathematica", "supposedly inspired by watching an apple fall"],
+          niche: ["built the first reflecting telescope", "prism experiments showed white light is composed of a spectrum of colors", "served as Master of the Royal Mint", "his corpuscular theory of light was later challenged by wave theory"]
+        },
+        "speed of sound": {
+          common: ["speed at which sound waves travel through a medium, about 343 m/s in room-temperature air", "faster in liquids and solids than in gases", "exceeded by supersonic aircraft"],
+          niche: ["depends on a medium's bulk modulus/elasticity and density", "Mach number is the ratio of an object's speed to it", "sonic booms result from shock waves formed at supersonic speeds", "Chuck Yeager was the first to officially exceed it in level flight"]
+        },
+        "superconductors": {
+          common: ["materials with zero electrical resistance below a critical temperature", "expel magnetic fields, known as the Meissner effect", "used in MRI machines and maglev trains", "first observed by Heike Kamerlingh Onnes in mercury"],
+          niche: ["explained by BCS theory, involving Cooper pairs of electrons", "high-temperature versions include cuprate materials like YBCO", "type I and type II differ in how they respond to magnetic fields", "Josephson junctions exploit quantum tunneling between two of them"]
+        },
+        "capacitors": {
+          common: ["devices that store electric charge/energy in an electric field", "two conductive plates separated by a dielectric", "measured in farads", "charge and discharge through RC circuits"],
+          niche: ["energy stored equals one-half C V squared", "series combinations add like parallel resistors, and vice versa", "electrolytic and ceramic types are common in electronics", "used for smoothing and filtering in power supplies"]
+        },
+        "electrical resistance": {
+          common: ["opposition to current flow in a conductor, measured in ohms", "governed by Ohm's law, V=IR", "increases with a wire's length and decreases with its cross-sectional area", "essentially zero in superconductors"],
+          niche: ["resistivity is the intrinsic material property, distinct from geometry-dependent resistance", "generally increases with temperature in metals, opposite in semiconductors", "power dissipated by it equals I-squared R", "combines by simple addition in series, reciprocal sum in parallel"]
+        },
+        "power": {
+          common: ["rate at which work is done or energy is transferred, measured in watts", "equals work divided by time, or force times velocity", "electrical form equals voltage times current (P=IV)"],
+          niche: ["for a resistor, equals I-squared R or V-squared over R", "horsepower is a non-SI unit, about 746 watts", "average versus instantaneous values are distinguished using RMS in AC circuits", "radiated form from a blackbody is given by the Stefan-Boltzmann law"]
+        },
+        "Richard Feynman": {
+          common: ["American physicist known for Feynman diagrams representing particle interactions", "helped develop quantum electrodynamics (QED)", "worked on the Manhattan Project", "known for lively lectures and a bongo-playing, prank-loving persona"],
+          niche: ["shared the 1965 Nobel Prize with Schwinger and Tomonaga", "formulated the path integral approach to quantum mechanics", "investigated the O-ring failure behind the Challenger disaster", "wrote the memoir \"Surely You're Joking, Mr. Feynman!\""]
+        },
+        "special relativity": {
+          common: ["Einstein's 1905 theory describing space and time for objects moving at constant velocity", "postulates that the speed of light is constant for all observers", "predicts time dilation and length contraction", "source of the equation E=mc^2"],
+          niche: ["motivated in part by the null result of the Michelson-Morley experiment", "uses Lorentz transformations to relate different reference frames", "the twin paradox illustrates asymmetric time dilation", "unified space and time into 4D Minkowski spacetime"]
+        },
+        "Michael Faraday": {
+          common: ["discovered electromagnetic induction, the basis of generators and transformers", "formulated the laws of electrolysis", "invented the Faraday cage", "had little formal mathematical training"],
+          niche: ["built the first electric motor, a homopolar motor, using a magnet and mercury", "mentored early in his career by Humphry Davy", "his induction law was later formalized as one of Maxwell's equations", "the ice pail experiment demonstrated charge induction on a conducting shell"]
+        },
+        "Enrico Fermi": {
+          common: ["Italian-American physicist who built the first nuclear reactor, Chicago Pile-1", "namesake of fermions and of Fermi National Laboratory", "worked on the Manhattan Project", "won the Nobel Prize for work on induced radioactivity"],
+          niche: ["Fermi-Dirac statistics, developed with Dirac, describe particles like electrons", "the Fermi paradox questions the lack of evidence for extraterrestrial life", "Fermi's golden rule describes quantum transition rates", "known for \"Fermi problems\" — order-of-magnitude estimation puzzles like counting piano tuners in Chicago"]
+        }
+      }
     }
   }
 };
